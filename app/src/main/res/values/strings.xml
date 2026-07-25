@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">IGThreadsDownloader</string>
-    <string name="overlay_notification_title">IGThreadsDownloader 懸浮工具運作中</string>
+    <string name="app_name">IG・Threads 下載</string>
+    <string name="overlay_notification_title">IG・Threads 下載懸浮工具運作中</string>
     <string name="overlay_notification_text">複製 IG / Threads 連結後點懸浮球即可解析</string>
-    <string name="overlay_brand" translatable="false">IGTHREADSDOWNLOADER</string>
+    <string name="overlay_brand" translatable="false">IG・THREADS 下載</string>
     <string name="media_kind_video">影片</string>
     <string name="media_kind_image">圖片</string>
     <string name="overlay_media_item">%1$d. %2$s · %3$s</string>

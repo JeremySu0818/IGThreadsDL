@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "IGThreadsDownloader"
+rootProject.name = "IGThreadsDL"
 include(":app")

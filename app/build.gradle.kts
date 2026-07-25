@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.jeremysu0818.igthreadsdownloader"
+    namespace = "com.jeremysu0818.igthreadsdl"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.jeremysu0818.igthreadsdownloader"
+        applicationId = "com.jeremysu0818.igthreadsdl"
         minSdk = 29
         targetSdk = 36
         versionCode = 1
