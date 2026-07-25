@@ -17,6 +17,10 @@ import kotlinx.coroutines.launch
 import android.content.Context
 import com.jeremysu0818.igthreadsdl.ui.theme.ThemeMode
 
+import com.jeremysu0818.igthreadsdl.i18n.AppLanguage
+import com.jeremysu0818.igthreadsdl.i18n.AppStrings
+import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
+
 enum class MainTab {
     DOWNLOAD,
     QUEUE,
@@ -27,6 +31,7 @@ enum class MainTab {
 data class MainUiState(
     val tab: MainTab = MainTab.DOWNLOAD,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val input: String = "",
     val isResolving: Boolean = false,
     val manifest: MediaManifest? = null,
@@ -34,7 +39,10 @@ data class MainUiState(
     val errorMessage: String? = null,
     val noticeMessage: String? = null,
     val records: List<DownloadRecord> = emptyList(),
-)
+) {
+    val strings: AppStrings
+        get() = LanguageManager.getStrings(appLanguage)
+}
 
 class MainViewModel : ViewModel() {
     private val resolverRepository = AppGraph.resolverRepository
@@ -45,6 +53,7 @@ class MainViewModel : ViewModel() {
 
     init {
         loadThemeMode()
+        loadAppLanguage()
         viewModelScope.launch {
             downloadRepository.records.collect { records ->
                 _state.update { it.copy(records = records) }
@@ -61,11 +70,25 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    private fun loadAppLanguage() {
+        runCatching {
+            val language = LanguageManager.getSavedLanguage(AppGraph.application)
+            _state.update { it.copy(appLanguage = language) }
+        }
+    }
+
     fun selectThemeMode(mode: ThemeMode) {
         _state.update { it.copy(themeMode = mode) }
         runCatching {
             val prefs = AppGraph.application.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
             prefs.edit().putString("theme_mode", mode.name).apply()
+        }
+    }
+
+    fun selectAppLanguage(language: AppLanguage) {
+        _state.update { it.copy(appLanguage = language) }
+        runCatching {
+            LanguageManager.saveLanguage(AppGraph.application, language)
         }
     }
 
@@ -95,7 +118,7 @@ class MainViewModel : ViewModel() {
         if (url == null) {
             if (text.isNotBlank() && autoResolve) {
                 _state.update {
-                    it.copy(errorMessage = "分享或剪貼簿內容沒有可支援的 Instagram / Threads 貼文連結。")
+                    it.copy(errorMessage = it.strings.msgInvalidClipboard)
                 }
             }
             return
@@ -106,7 +129,7 @@ class MainViewModel : ViewModel() {
             it.copy(
                 tab = MainTab.DOWNLOAD,
                 input = url,
-                noticeMessage = if (autoResolve) "已擷取連結，正在解析公開內容。" else null,
+                noticeMessage = if (autoResolve) it.strings.msgLinkCapturedResolving else null,
             )
         }
         if (autoResolve) parseText(url)
@@ -137,7 +160,7 @@ class MainViewModel : ViewModel() {
         val manifest = current.manifest ?: return
         val items = manifest.items.filter { it.id in current.selectedIds }
         if (items.isEmpty()) {
-            _state.update { it.copy(errorMessage = "請至少選取一個媒體項目。") }
+            _state.update { it.copy(errorMessage = it.strings.msgSelectAtLeastOne) }
             return
         }
         viewModelScope.launch {
@@ -145,15 +168,15 @@ class MainViewModel : ViewModel() {
             val accepted = records.count { it.status != DownloadStatus.FAILED }
             val failed = records.size - accepted
             _state.update {
+                val s = it.strings
+                val msg = when {
+                    accepted > 0 && failed > 0 -> String.format(s.msgDownloadJobsMixed, accepted, failed)
+                    accepted > 0 -> String.format(s.msgDownloadJobCreated, accepted)
+                    else -> String.format(s.msgDownloadJobFailed, failed)
+                }
                 it.copy(
                     tab = MainTab.QUEUE,
-                    noticeMessage = buildString {
-                        if (accepted > 0) append("已建立 $accepted 個真實下載工作。")
-                        if (failed > 0) {
-                            if (isNotEmpty()) append(' ')
-                            append("$failed 個項目無法下載，請查看紀錄。")
-                        }
-                    },
+                    noticeMessage = msg,
                     errorMessage = null,
                 )
             }
@@ -170,7 +193,7 @@ class MainViewModel : ViewModel() {
             _state.update {
                 it.copy(
                     tab = MainTab.QUEUE,
-                    noticeMessage = if (record != null) "已重新建立下載工作。" else "找不到可重試的項目。",
+                    noticeMessage = if (record != null) it.strings.msgRetryCreated else it.strings.msgRetryNotFound,
                 )
             }
         }
@@ -180,20 +203,20 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             val deleted = downloadRepository.delete(managerId)
             _state.update {
-                it.copy(noticeMessage = if (deleted) "檔案與歷史紀錄已刪除。" else "歷史紀錄已移除。")
+                it.copy(noticeMessage = if (deleted) it.strings.msgDeleteFileAndRecord else it.strings.msgDeleteRecordOnly)
             }
         }
     }
 
     fun open(record: DownloadRecord) {
         if (!downloadRepository.open(record)) {
-            _state.update { it.copy(errorMessage = "找不到可開啟此檔案的 App，或檔案已不存在。") }
+            _state.update { it.copy(errorMessage = it.strings.msgCannotOpenFile) }
         }
     }
 
     fun share(record: DownloadRecord) {
         if (!downloadRepository.share(record)) {
-            _state.update { it.copy(errorMessage = "無法分享此檔案；檔案可能已被移除。") }
+            _state.update { it.copy(errorMessage = it.strings.msgCannotShareFile) }
         }
     }
 
@@ -203,7 +226,7 @@ class MainViewModel : ViewModel() {
 
     private fun parseText(text: String) {
         if (text.isBlank()) {
-            _state.update { it.copy(errorMessage = "請先貼上連結。") }
+            _state.update { it.copy(errorMessage = it.strings.msgPleasePasteLink) }
             return
         }
         viewModelScope.launch {
@@ -225,9 +248,9 @@ class MainViewModel : ViewModel() {
                             selectedIds = result.manifest.items.map { item -> item.id }.toSet(),
                             errorMessage = null,
                             noticeMessage = if (result.manifest.isPartial) {
-                                "公開頁面只提供部分項目，畫面已清楚標示。"
+                                it.strings.msgPartialManifest
                             } else {
-                                "已取得 ${result.manifest.items.size} 個真實媒體項目。"
+                                String.format(it.strings.msgGotMediaItems, result.manifest.items.size)
                             },
                         )
                     }
@@ -238,7 +261,7 @@ class MainViewModel : ViewModel() {
                             isResolving = false,
                             manifest = null,
                             selectedIds = emptySet(),
-                            errorMessage = result.error.userMessage(),
+                            errorMessage = result.error.userMessage(it.strings),
                             noticeMessage = null,
                         )
                     }

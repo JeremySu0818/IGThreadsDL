@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Ke stažení IG &amp; Threads</string>
+    <string name="overlay_notification_title">Plovoucí nástroj IG/Threads je aktivní</string>
+    <string name="overlay_notification_text">Zkopírujte odkaz IG/Threads a klepnutím na bublinu jej analyzujte</string>
+    <string name="overlay_notification_action_stop">Zastavit</string>
+    <string name="media_kind_video">Video</string>
+    <string name="media_kind_image">Obrázek</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Automatický plovoucí nástroj pro IG/Threads</string>
+    <string name="auto_launch_service_description">Detekuje otevření Instagramu nebo Threads a spustí plovoucí nástroj podle nastavení.</string>
+</resources>

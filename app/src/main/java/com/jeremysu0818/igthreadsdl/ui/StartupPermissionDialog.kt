@@ -20,8 +20,11 @@ import com.jeremysu0818.igthreadsdl.ui.theme.MatteCard
 import com.jeremysu0818.igthreadsdl.ui.theme.MatteTextPrimary
 import com.jeremysu0818.igthreadsdl.ui.theme.MatteTextSecondary
 
+import com.jeremysu0818.igthreadsdl.i18n.AppStrings
+
 @Composable
 fun StartupPermissionDialog(
+    strings: AppStrings,
     status: AppPermissionStatus,
     onRequestOverlay: () -> Unit,
     onRequestNotifications: () -> Unit,
@@ -29,23 +32,23 @@ fun StartupPermissionDialog(
 ) {
     AlertDialog(
         onDismissRequest = {},
-        title = { Text("請先完成權限設定") },
+        title = { Text(strings.permissionDialogTitle) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("以下權限是 App 運作的必要條件，全部開啟後即可開始使用。")
+                Text(strings.permissionDialogMessage)
                 if (!status.overlay) {
                     PermissionButton(
-                        text = "開啟懸浮視窗",
+                        text = strings.permissionBtnOverlay,
                         icon = { Icon(Icons.Default.Tune, contentDescription = null) },
                         onClick = onRequestOverlay,
                     )
                 }
                 if (!status.accessibility) {
                     PermissionButton(
-                        text = "開啟無障礙服務",
+                        text = strings.permissionBtnAccessibility,
                         icon = {
                             Icon(Icons.Default.BrightnessAuto, contentDescription = null)
                         },
@@ -54,7 +57,7 @@ fun StartupPermissionDialog(
                 }
                 if (!status.notifications) {
                     PermissionButton(
-                        text = "開啟下載通知",
+                        text = strings.permissionBtnNotifications,
                         icon = { Icon(Icons.Default.Info, contentDescription = null) },
                         onClick = onRequestNotifications,
                     )

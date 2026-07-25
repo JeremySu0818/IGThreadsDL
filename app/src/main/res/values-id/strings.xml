@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Pengunduh IG &amp; Threads</string>
+    <string name="overlay_notification_title">Alat Melayang IG/Threads Aktif</string>
+    <string name="overlay_notification_text">Salin tautan IG / Threads lalu ketuk gelembung melayang untuk menganalisis</string>
+    <string name="overlay_notification_action_stop">Hentikan</string>
+    <string name="media_kind_video">Video</string>
+    <string name="media_kind_image">Gambar</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Alat Melayang Otomatis IG / Threads</string>
+    <string name="auto_launch_service_description">Mendeteksi pembukaan Instagram atau Threads dan menjalankan pengunduh melayang sesuai pengaturan.</string>
+</resources>

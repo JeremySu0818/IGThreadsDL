@@ -28,6 +28,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import com.jeremysu0818.igthreadsdl.ui.theme.ThemeMode
+import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
@@ -79,51 +80,63 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
 
-            IGThreadsDLTheme(themeMode = state.themeMode) {
-                MainScreen(
-                    viewModel = viewModel,
-                    permissionStatus = permissionStatus,
-                    autoLaunchEnabled = autoLaunchEnabled,
-                    overlayRunning = overlayRunning,
-                    onAutoLaunchChange = { enabled ->
-                        PermissionStatus.setAutoLaunchEnabled(this, enabled)
-                        autoLaunchEnabled = enabled
-                        if (
-                            enabled &&
-                            !PermissionStatus.isAutoLaunchDetectorEnabled(this)
-                        ) {
-                            startActivity(PermissionStatus.accessibilitySettingsIntent())
-                        }
-                    },
-                    onStartOverlay = {
-                        if (PermissionStatus.startOverlay(this)) {
-                            viewModel.clearMessage()
-                        }
-                        refreshPermissionStatus()
-                    },
-                    onStopOverlay = {
-                        PermissionStatus.stopOverlay(this)
-                    },
-                    onRequestOverlayPermission = {
-                        startActivity(PermissionStatus.overlaySettingsIntent(this))
-                    },
-                    onPasteClipboard = {
-                        clipboardText()?.let {
-                            viewModel.receiveExternalText(it, autoResolve = false)
-                        }
-                    },
-                )
-                if (!permissionStatus.allRequiredGranted) {
-                    StartupPermissionDialog(
-                        status = permissionStatus,
-                        onRequestOverlay = {
+            val resolvedLang = LanguageManager.resolveAppLanguage(state.appLanguage)
+            val layoutDirection = if (resolvedLang == com.jeremysu0818.igthreadsdl.i18n.AppLanguage.AR) {
+                androidx.compose.ui.unit.LayoutDirection.Rtl
+            } else {
+                androidx.compose.ui.unit.LayoutDirection.Ltr
+            }
+
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalLayoutDirection provides layoutDirection,
+            ) {
+                IGThreadsDLTheme(themeMode = state.themeMode) {
+                    MainScreen(
+                        viewModel = viewModel,
+                        permissionStatus = permissionStatus,
+                        autoLaunchEnabled = autoLaunchEnabled,
+                        overlayRunning = overlayRunning,
+                        onAutoLaunchChange = { enabled ->
+                            PermissionStatus.setAutoLaunchEnabled(this, enabled)
+                            autoLaunchEnabled = enabled
+                            if (
+                                enabled &&
+                                !PermissionStatus.isAutoLaunchDetectorEnabled(this)
+                            ) {
+                                startActivity(PermissionStatus.accessibilitySettingsIntent())
+                            }
+                        },
+                        onStartOverlay = {
+                            if (PermissionStatus.startOverlay(this)) {
+                                viewModel.clearMessage()
+                            }
+                            refreshPermissionStatus()
+                        },
+                        onStopOverlay = {
+                            PermissionStatus.stopOverlay(this)
+                        },
+                        onRequestOverlayPermission = {
                             startActivity(PermissionStatus.overlaySettingsIntent(this))
                         },
-                        onRequestNotifications = ::requestNotificationPermission,
-                        onRequestAccessibility = {
-                            startActivity(PermissionStatus.accessibilitySettingsIntent())
+                        onPasteClipboard = {
+                            clipboardText()?.let {
+                                viewModel.receiveExternalText(it, autoResolve = false)
+                            }
                         },
                     )
+                    if (!permissionStatus.allRequiredGranted) {
+                        StartupPermissionDialog(
+                            strings = state.strings,
+                            status = permissionStatus,
+                            onRequestOverlay = {
+                                startActivity(PermissionStatus.overlaySettingsIntent(this))
+                            },
+                            onRequestNotifications = ::requestNotificationPermission,
+                            onRequestAccessibility = {
+                                startActivity(PermissionStatus.accessibilitySettingsIntent())
+                            },
+                        )
+                    }
                 }
             }
         }

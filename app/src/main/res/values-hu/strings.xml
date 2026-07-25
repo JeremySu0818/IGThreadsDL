@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">IG és Threads letöltő</string>
+    <string name="overlay_notification_title">A lebegő IG/Threads eszköz aktív</string>
+    <string name="overlay_notification_text">Másoljon egy IG/Threads hivatkozást, majd koppintson a buborékra az elemzéshez</string>
+    <string name="overlay_notification_action_stop">Leállítás</string>
+    <string name="media_kind_video">Videó</string>
+    <string name="media_kind_image">Kép</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Automatikus lebegő eszköz IG / Threads-hez</string>
+    <string name="auto_launch_service_description">Érzékeli az Instagram vagy a Threads megnyitását, és a beállítások alapján elindítja a lebegő letöltőt.</string>
+</resources>

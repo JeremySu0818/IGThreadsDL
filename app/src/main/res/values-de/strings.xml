@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">IG &amp; Threads Downloader</string>
+    <string name="overlay_notification_title">Schwebendes IG/Threads-Tool aktiv</string>
+    <string name="overlay_notification_text">IG/Threads-Link kopieren und auf die Blase tippen zum Analysieren</string>
+    <string name="overlay_notification_action_stop">Stoppen</string>
+    <string name="media_kind_video">Video</string>
+    <string name="media_kind_image">Bild</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Automatisches schwebendes Tool für IG/Threads</string>
+    <string name="auto_launch_service_description">Erkennt das Öffnen von Instagram oder Threads und startet das schwebende Tool je nach Einstellung.</string>
+</resources>

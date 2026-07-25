@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
@@ -65,6 +67,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.material.icons.filled.Language
+import com.jeremysu0818.igthreadsdl.i18n.AppLanguage
+import com.jeremysu0818.igthreadsdl.i18n.AppStrings
 import androidx.compose.runtime.collectAsState
 import com.jeremysu0818.igthreadsdl.ui.theme.ThemeMode
 import androidx.compose.runtime.getValue
@@ -153,6 +158,7 @@ fun MainScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val hazeState = remember { HazeState() }
+    val strings = state.strings
 
     Box(
         modifier = Modifier
@@ -160,12 +166,13 @@ fun MainScreen(
             .background(MatteBg)
             .statusBarsPadding(),
     ) {
-             Column(
+        Column(
             modifier = Modifier.fillMaxSize().hazeSource(state = hazeState),
         ) {
             when (state.tab) {
                 MainTab.DOWNLOAD -> DownloadPage(
                     state = state,
+                    strings = strings,
                     onInputChange = viewModel::updateInput,
                     onParse = viewModel::parse,
                     onPasteClipboard = onPasteClipboard,
@@ -180,10 +187,11 @@ fun MainScreen(
                 )
                 MainTab.QUEUE -> RecordsPage(
                     records = state.records.filter { it.isActive },
-                    title = "下載佇列",
-                    subtitle = "查看進行中的下載工作與即時進度。",
-                    emptyTitle = "目前沒有下載中的工作",
-                    emptyBody = "在「首頁」貼上 IG 或 Threads 連結後，下載進度會顯示在這裡。",
+                    title = strings.queueTitle,
+                    subtitle = strings.queueSubtitle,
+                    emptyTitle = strings.queueEmptyTitle,
+                    emptyBody = strings.queueEmptyBody,
+                    strings = strings,
                     onCancel = viewModel::cancel,
                     onRetry = viewModel::retry,
                     onOpen = viewModel::open,
@@ -192,10 +200,11 @@ fun MainScreen(
                 )
                 MainTab.HISTORY -> RecordsPage(
                     records = state.records.filter { !it.isActive },
-                    title = "歷史紀錄",
-                    subtitle = "管理已完成、失敗或取消的檔案。",
-                    emptyTitle = "尚無歷史紀錄",
-                    emptyBody = "已下載完成或取消的檔案紀錄會存放在這裡。",
+                    title = strings.historyTitle,
+                    subtitle = strings.historySubtitle,
+                    emptyTitle = strings.historyEmptyTitle,
+                    emptyBody = strings.historyEmptyBody,
+                    strings = strings,
                     onCancel = viewModel::cancel,
                     onRetry = viewModel::retry,
                     onOpen = viewModel::open,
@@ -204,9 +213,12 @@ fun MainScreen(
                 )
                 MainTab.SETTINGS -> SettingsPage(
                     currentThemeMode = state.themeMode,
+                    currentAppLanguage = state.appLanguage,
+                    strings = strings,
                     autoLaunchEnabled = autoLaunchEnabled,
                     onAutoLaunchChange = onAutoLaunchChange,
                     onSelectThemeMode = viewModel::selectThemeMode,
+                    onSelectAppLanguage = viewModel::selectAppLanguage,
                 )
             }
         }
@@ -217,6 +229,7 @@ fun MainScreen(
                 .navigationBarsPadding(),
             hazeState = hazeState,
             selected = state.tab,
+            strings = strings,
             activeCount = state.records.count { it.isActive },
             historyCount = state.records.count { !it.isActive },
             onSelect = viewModel::selectTab,
@@ -224,22 +237,22 @@ fun MainScreen(
     }
 }
 
-
 @Composable
 private fun BottomNavBar(
     modifier: Modifier = Modifier,
     hazeState: HazeState,
     selected: MainTab,
+    strings: AppStrings,
     activeCount: Int,
     historyCount: Int,
     onSelect: (MainTab) -> Unit,
 ) {
-    val items = remember(activeCount, historyCount) {
+    val items = remember(activeCount, historyCount, strings) {
         listOf(
-            NavItem(MainTab.DOWNLOAD, "首頁", Icons.Default.Download, 0),
-            NavItem(MainTab.QUEUE, "佇列", Icons.Default.Bolt, activeCount),
-            NavItem(MainTab.HISTORY, "紀錄", Icons.Default.History, historyCount),
-            NavItem(MainTab.SETTINGS, "設定", Icons.Default.Settings, 0),
+            NavItem(MainTab.DOWNLOAD, strings.navHome, Icons.Default.Download, 0),
+            NavItem(MainTab.QUEUE, strings.navQueue, Icons.Default.Bolt, activeCount),
+            NavItem(MainTab.HISTORY, strings.navHistory, Icons.Default.History, historyCount),
+            NavItem(MainTab.SETTINGS, strings.navSettings, Icons.Default.Settings, 0),
         )
     }
 
@@ -374,6 +387,7 @@ private fun BottomNavBar(
 @Composable
 private fun DownloadPage(
     state: MainUiState,
+    strings: AppStrings,
     onInputChange: (String) -> Unit,
     onParse: () -> Unit,
     onPasteClipboard: () -> Unit,
@@ -400,7 +414,7 @@ private fun DownloadPage(
     ) {
         item {
             RecordsPageHeader(
-                title = "首頁",
+                title = strings.pageHomeTitle,
                 subtitle = null,
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
@@ -408,6 +422,7 @@ private fun DownloadPage(
         item {
             ContentFrame {
                 OverlayQuickControlCard(
+                    strings = strings,
                     overlayReady = overlayReady,
                     overlayRunning = overlayRunning,
                     onStartOverlay = onStartOverlay,
@@ -421,6 +436,7 @@ private fun DownloadPage(
                 UrlInputCard(
                     value = state.input,
                     isResolving = state.isResolving,
+                    strings = strings,
                     onValueChange = onInputChange,
                     onPaste = onPasteClipboard,
                     onParse = onParse,
@@ -453,6 +469,7 @@ private fun DownloadPage(
                             ManifestCard(
                                 manifest = manifest,
                                 selectedIds = state.selectedIds,
+                                strings = strings,
                                 onToggleItem = onToggleItem,
                                 onSelectAll = onSelectAll,
                                 onDownload = onDownload,
@@ -467,6 +484,7 @@ private fun DownloadPage(
 
 @Composable
 private fun OverlayQuickControlCard(
+    strings: AppStrings,
     overlayReady: Boolean,
     overlayRunning: Boolean,
     onStartOverlay: () -> Unit,
@@ -508,7 +526,7 @@ private fun OverlayQuickControlCard(
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = "懸浮工具",
+                text = strings.overlayQuickControlTitle,
                 color = ContentTextPrimary,
                 fontSize = 17.sp,
                 lineHeight = 22.sp,
@@ -517,9 +535,9 @@ private fun OverlayQuickControlCard(
             Spacer(Modifier.height(2.dp))
             Text(
                 text = when {
-                    !overlayReady -> "需要允許顯示在其他 App 上層"
-                    overlayRunning -> "已啟動，可在其他 App 使用"
-                    else -> "點一下開啟快速下載工具"
+                    !overlayReady -> strings.overlayQuickControlNeedPermission
+                    overlayRunning -> strings.overlayQuickControlRunning
+                    else -> strings.overlayQuickControlTapToStart
                 },
                 color = ContentTextMuted,
                 fontSize = 12.sp,
@@ -537,79 +555,17 @@ private fun OverlayQuickControlCard(
 }
 
 @Composable
-private fun ThemeModeCard(
-    currentMode: ThemeMode,
-    onSelectMode: (ThemeMode) -> Unit,
-) {
-    Column {
-        SectionTitle(
-            title = "外觀",
-            subtitle = "選擇最適合目前環境的顯示模式。",
-        )
-        Spacer(Modifier.height(10.dp))
-        SectionSurface {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                ThemeOptionChip(
-                    label = "跟隨系統",
-                    selected = currentMode == ThemeMode.SYSTEM,
-                    modifier = Modifier.weight(1f),
-                    onClick = { onSelectMode(ThemeMode.SYSTEM) },
-                )
-                ThemeOptionChip(
-                    label = "淺色",
-                    selected = currentMode == ThemeMode.LIGHT,
-                    modifier = Modifier.weight(1f),
-                    onClick = { onSelectMode(ThemeMode.LIGHT) },
-                )
-                ThemeOptionChip(
-                    label = "深色",
-                    selected = currentMode == ThemeMode.DARK,
-                    modifier = Modifier.weight(1f),
-                    onClick = { onSelectMode(ThemeMode.DARK) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThemeOptionChip(
-    label: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) ContentSubtleSurface else Color.Transparent)
-            .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            color = if (selected) ContentTextPrimary else ContentTextMuted,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
 private fun SettingsPage(
     currentThemeMode: ThemeMode,
+    currentAppLanguage: AppLanguage,
+    strings: AppStrings,
     autoLaunchEnabled: Boolean,
     onAutoLaunchChange: (Boolean) -> Unit,
     onSelectThemeMode: (ThemeMode) -> Unit,
+    onSelectAppLanguage: (AppLanguage) -> Unit,
 ) {
     var showColorModeDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -627,21 +583,36 @@ private fun SettingsPage(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                CompactPageHeader("Settings")
+                CompactPageHeader(strings.settingsTitle)
             }
             item {
                 AiSettingsGroup {
                     AiSettingsRow(
                         icon = Icons.Default.Palette,
-                        title = "Color mode",
-                        subtitle = currentThemeMode.displayName(),
+                        title = strings.settingsColorModeTitle,
+                        subtitle = currentThemeMode.displayName(strings),
                         onClick = { showColorModeDialog = true },
                     )
                 }
             }
             item {
                 AiSettingsGroup {
+                    AiSettingsRow(
+                        icon = Icons.Default.Language,
+                        title = strings.settingsLanguageTitle,
+                        subtitle = if (currentAppLanguage == AppLanguage.SYSTEM) {
+                            "${strings.settingsThemeSystem} (${currentAppLanguage.endonym})"
+                        } else {
+                            currentAppLanguage.endonym
+                        },
+                        onClick = { showLanguageDialog = true },
+                    )
+                }
+            }
+            item {
+                AiSettingsGroup {
                     AutoLaunchSettingsRow(
+                        strings = strings,
                         checked = autoLaunchEnabled,
                         onCheckedChange = onAutoLaunchChange,
                     )
@@ -651,9 +622,9 @@ private fun SettingsPage(
                 AiSettingsGroup {
                     AiSettingsRow(
                         icon = Icons.Default.Folder,
-                        title = "儲存位置",
-                        subtitle = "Downloads / 媒體庫",
-                        trailingText = "自動",
+                        title = strings.settingsStorageLocationTitle,
+                        subtitle = strings.settingsStorageLocationSubtitle,
+                        trailingText = strings.settingsStorageLocationAuto,
                     )
                 }
             }
@@ -661,8 +632,8 @@ private fun SettingsPage(
                 AiSettingsGroup {
                     AiSettingsRow(
                         icon = Icons.Default.Info,
-                        title = "IG & Threads 下載器",
-                        subtitle = "儲存公開圖片與影片",
+                        title = strings.settingsAppInfoTitle,
+                        subtitle = strings.settingsAppInfoSubtitle,
                         trailingText = "1.0",
                     )
                 }
@@ -673,6 +644,7 @@ private fun SettingsPage(
     if (showColorModeDialog) {
         ColorModeDialog(
             selectedMode = currentThemeMode,
+            strings = strings,
             onSelectMode = {
                 onSelectThemeMode(it)
                 showColorModeDialog = false
@@ -680,10 +652,23 @@ private fun SettingsPage(
             onDismiss = { showColorModeDialog = false },
         )
     }
+
+    if (showLanguageDialog) {
+        LanguageDialog(
+            selectedLanguage = currentAppLanguage,
+            strings = strings,
+            onSelectLanguage = {
+                onSelectAppLanguage(it)
+                showLanguageDialog = false
+            },
+            onDismiss = { showLanguageDialog = false },
+        )
+    }
 }
 
 @Composable
 private fun AutoLaunchSettingsRow(
+    strings: AppStrings,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -704,7 +689,7 @@ private fun AutoLaunchSettingsRow(
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = "自動啟動懸浮工具",
+                text = strings.settingsAutoLaunchTitle,
                 color = ContentTextPrimary,
                 fontSize = 17.sp,
                 lineHeight = 22.sp,
@@ -713,7 +698,7 @@ private fun AutoLaunchSettingsRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "開啟 Instagram 或 Threads 時自動顯示",
+                text = strings.settingsAutoLaunchSubtitle,
                 color = ContentTextMuted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
@@ -854,6 +839,7 @@ private fun AiSettingsRow(
 @Composable
 private fun ColorModeDialog(
     selectedMode: ThemeMode,
+    strings: AppStrings,
     onSelectMode: (ThemeMode) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -882,7 +868,7 @@ private fun ColorModeDialog(
                     .padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 12.dp),
             ) {
                 Text(
-                    text = "Color mode",
+                    text = strings.settingsColorModeTitle,
                     color = ContentTextPrimary,
                     fontSize = 20.sp,
                     lineHeight = 26.sp,
@@ -891,19 +877,19 @@ private fun ColorModeDialog(
                 Spacer(Modifier.height(8.dp))
                 ColorModeOption(
                     icon = Icons.Default.BrightnessAuto,
-                    label = "System",
+                    label = strings.settingsThemeSystem,
                     selected = selectedMode == ThemeMode.SYSTEM,
                     onClick = { onSelectMode(ThemeMode.SYSTEM) },
                 )
                 ColorModeOption(
                     icon = Icons.Default.LightMode,
-                    label = "Light",
+                    label = strings.settingsThemeLight,
                     selected = selectedMode == ThemeMode.LIGHT,
                     onClick = { onSelectMode(ThemeMode.LIGHT) },
                 )
                 ColorModeOption(
                     icon = Icons.Default.DarkMode,
-                    label = "Dark",
+                    label = strings.settingsThemeDark,
                     selected = selectedMode == ThemeMode.DARK,
                     onClick = { onSelectMode(ThemeMode.DARK) },
                 )
@@ -946,7 +932,7 @@ private fun ColorModeOption(
         if (selected) {
             Icon(
                 imageVector = Icons.Default.Check,
-                contentDescription = "Selected",
+                contentDescription = null,
                 tint = ContentSelection,
                 modifier = Modifier.size(22.dp),
             )
@@ -954,10 +940,105 @@ private fun ColorModeOption(
     }
 }
 
-private fun ThemeMode.displayName(): String = when (this) {
-    ThemeMode.SYSTEM -> "System"
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.DARK -> "Dark"
+@Composable
+private fun LanguageDialog(
+    selectedLanguage: AppLanguage,
+    strings: AppStrings,
+    onSelectLanguage: (AppLanguage) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val dialogView = LocalView.current
+        SideEffect {
+            val window = (dialogView.parent as DialogWindowProvider).window
+            window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.setDimAmount(0.60f)
+        }
+
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .widthIn(max = 360.dp)
+                    .heightIn(max = 520.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(ContentBackground)
+                    .padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 12.dp),
+            ) {
+                Text(
+                    text = strings.settingsLanguageTitle,
+                    color = ContentTextPrimary,
+                    fontSize = 20.sp,
+                    lineHeight = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
+                    itemsIndexed(AppLanguage.values()) { _, language ->
+                        val label = if (language == AppLanguage.SYSTEM) {
+                            "${strings.settingsThemeSystem} (${language.endonym})"
+                        } else {
+                            language.endonym
+                        }
+                        LanguageOption(
+                            label = label,
+                            selected = selectedLanguage == language,
+                            onClick = { onSelectLanguage(language) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val color = if (selected) ContentSelection else ContentTextPrimary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            color = color,
+            fontSize = 18.sp,
+            lineHeight = 24.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+        )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = ContentSelection,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
+}
+
+private fun ThemeMode.displayName(strings: AppStrings): String = when (this) {
+    ThemeMode.SYSTEM -> strings.settingsThemeSystem
+    ThemeMode.LIGHT -> strings.settingsThemeLight
+    ThemeMode.DARK -> strings.settingsThemeDark
 }
 
 @Composable
@@ -994,9 +1075,35 @@ private fun StatusChip(
 }
 
 @Composable
+private fun SectionSurface(
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(ContentSurface)
+            .border(1.dp, ContentBorder, RoundedCornerShape(22.dp)),
+        content = content,
+    )
+}
+
+@Composable
+private fun ContentDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp)
+            .height(1.dp)
+            .background(ContentBorder.copy(alpha = 0.72f)),
+    )
+}
+
+@Composable
 private fun UrlInputCard(
     value: String,
     isResolving: Boolean,
+    strings: AppStrings,
     onValueChange: (String) -> Unit,
     onPaste: () -> Unit,
     onParse: () -> Unit,
@@ -1013,14 +1120,14 @@ private fun UrlInputCard(
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
-                        text = "貼文連結",
+                        text = strings.urlInputTitle,
                         color = ContentTextPrimary,
                         fontSize = 17.sp,
                         lineHeight = 22.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "支援 Instagram、Reels 與 Threads 公開貼文",
+                        text = strings.urlInputSubtitle,
                         color = ContentTextMuted,
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
@@ -1051,7 +1158,7 @@ private fun UrlInputCard(
                     Box {
                         if (value.isBlank()) {
                             Text(
-                                "https://www.instagram.com/p/…",
+                                strings.urlInputPlaceholder,
                                 color = ContentTextMuted,
                                 fontSize = 14.sp,
                                 lineHeight = 20.sp,
@@ -1067,14 +1174,14 @@ private fun UrlInputCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 HighRadiusButton(
-                    text = "貼上",
+                    text = strings.urlInputPasteBtn,
                     icon = Icons.Default.ContentPaste,
                     primary = false,
                     modifier = Modifier.weight(1f),
                     onClick = onPaste,
                 )
                 HighRadiusButton(
-                    text = if (isResolving) "解析中…" else "解析連結",
+                    text = if (isResolving) strings.urlInputParsingBtn else strings.urlInputParseBtn,
                     icon = Icons.AutoMirrored.Filled.ArrowForward,
                     primary = true,
                     enabled = !isResolving,
@@ -1090,21 +1197,22 @@ private fun UrlInputCard(
 private fun ManifestCard(
     manifest: MediaManifest,
     selectedIds: Set<String>,
+    strings: AppStrings,
     onToggleItem: (String) -> Unit,
     onSelectAll: (Boolean) -> Unit,
     onDownload: () -> Unit,
 ) {
     Column {
         SectionTitle(
-            title = "媒體預覽",
-            subtitle = "${manifest.platform.value.uppercase()} · ${manifest.author?.let { "@$it" } ?: "公開來源"}",
-            trailing = "${manifest.items.size} 個項目",
+            title = strings.manifestTitle,
+            subtitle = "${manifest.platform.value.uppercase()} · ${manifest.author?.let { "@$it" } ?: strings.manifestPublicSource}",
+            trailing = String.format(strings.manifestItemsCount, manifest.items.size),
         )
         manifest.thumbnailUrl?.let {
             Spacer(Modifier.height(12.dp))
             AsyncImage(
                 model = it,
-                contentDescription = "媒體預覽",
+                contentDescription = strings.manifestTitle,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1.78f)
@@ -1126,9 +1234,9 @@ private fun ManifestCard(
             )
         }
 
-        manifest.warnings.forEach {
+        if (manifest.isPartial) {
             Spacer(Modifier.height(8.dp))
-            SimpleBanner(it, MatteAmber)
+            SimpleBanner(strings.msgPartialManifest, MatteAmber)
         }
 
         Spacer(Modifier.height(18.dp))
@@ -1136,19 +1244,19 @@ private fun ManifestCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "選擇要下載的媒體",
+                    strings.manifestSelectMediaTitle,
                     color = ContentTextPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "預估大小 ${estimatedSize(manifest.items)}",
+                    String.format(strings.manifestEstimatedSize, estimatedSize(manifest.items, strings)),
                     color = ContentTextMuted,
                     fontSize = 11.sp,
                 )
             }
             HighRadiusButton(
-                text = if (selectedIds.size == manifest.items.size) "取消全選" else "全選",
+                text = if (selectedIds.size == manifest.items.size) strings.manifestDeselectAll else strings.manifestSelectAll,
                 primary = false,
                 onClick = { onSelectAll(selectedIds.size != manifest.items.size) },
             )
@@ -1161,6 +1269,7 @@ private fun ManifestCard(
                     item = item,
                     index = index,
                     selected = item.id in selectedIds,
+                    strings = strings,
                     onToggle = { onToggleItem(item.id) },
                 )
                 if (index != manifest.items.lastIndex) ContentDivider()
@@ -1170,7 +1279,7 @@ private fun ManifestCard(
         Spacer(Modifier.height(14.dp))
 
         HighRadiusButton(
-            text = "下載選取的 ${selectedIds.size} 個項目",
+            text = String.format(strings.manifestDownloadSelectedBtn, selectedIds.size),
             icon = Icons.Default.Download,
             primary = true,
             enabled = selectedIds.isNotEmpty(),
@@ -1185,6 +1294,7 @@ private fun MediaItemRow(
     item: MediaItem,
     index: Int,
     selected: Boolean,
+    strings: AppStrings,
     onToggle: () -> Unit,
 ) {
     Row(
@@ -1206,15 +1316,16 @@ private fun MediaItemRow(
                     modifier = Modifier.size(15.dp),
                 )
                 Spacer(Modifier.width(6.dp))
+                val kind = if (item.type == MediaItemType.VIDEO) strings.mediaKindVideo else strings.mediaKindImage
                 Text(
-                    "#${index + 1} ${if (item.type == MediaItemType.VIDEO) "影片" else "圖片"}",
+                    String.format(strings.mediaItemTitle, index + 1, kind),
                     color = ContentTextPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
             Text(
-                "${item.mimeType ?: "檔案"}  ·  ${formatBytes(item.contentLength)}",
+                String.format(strings.mediaItemDetails, item.mimeType ?: strings.mediaItemFallbackMime, formatBytes(item.contentLength, strings)),
                 color = ContentTextMuted,
                 fontSize = 11.sp,
             )
@@ -1229,6 +1340,7 @@ private fun RecordsPage(
     subtitle: String,
     emptyTitle: String,
     emptyBody: String,
+    strings: AppStrings,
     onCancel: (Long) -> Unit,
     onRetry: (Long) -> Unit,
     onOpen: (DownloadRecord) -> Unit,
@@ -1244,7 +1356,7 @@ private fun RecordsPage(
         item {
             RecordsPageHeader(
                 title = title,
-                subtitle = if (records.isEmpty()) subtitle else "$subtitle · ${records.size} 個項目",
+                subtitle = if (records.isEmpty()) subtitle else "$subtitle · ${records.size}",
             )
         }
         if (records.isEmpty()) {
@@ -1262,6 +1374,7 @@ private fun RecordsPage(
                 RecordCard(
                     record = record,
                     showDivider = index != records.lastIndex,
+                    strings = strings,
                     onCancel = { onCancel(record.managerId) },
                     onRetry = { onRetry(record.managerId) },
                     onOpen = { onOpen(record) },
@@ -1309,6 +1422,7 @@ private fun RecordsPageHeader(
 private fun RecordCard(
     record: DownloadRecord,
     showDivider: Boolean,
+    strings: AppStrings,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     onOpen: () -> Unit,
@@ -1330,7 +1444,7 @@ private fun RecordCard(
                     )
                     Spacer(Modifier.height(3.dp))
                     Text(
-                        "${formatDate(record.updatedAt)} · ${record.platform.value} · ${statusLabel(record.status)}",
+                        "${formatDate(record.updatedAt)} · ${record.platform.value} · ${statusLabel(record.status, strings)}",
                         color = ContentTextMuted,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
@@ -1363,8 +1477,8 @@ private fun RecordCard(
 
             Text(
                 buildString {
-                    append(formatBytes(record.bytesDownloaded))
-                    record.totalBytes?.let { append(" / ${formatBytes(it)}") }
+                    append(formatBytes(record.bytesDownloaded, strings))
+                    record.totalBytes?.let { append(" / ${formatBytes(it, strings)}") }
                     record.statusMessage?.let { append("  ·  $it") }
                 },
                 color = if (record.status == DownloadStatus.FAILED) MatteRose else ContentTextMuted,
@@ -1379,15 +1493,15 @@ private fun RecordCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 when {
-                    record.isActive -> HighRadiusButton("取消", icon = Icons.Default.Close, primary = false, onClick = onCancel)
+                    record.isActive -> HighRadiusButton(strings.btnCancel, icon = Icons.Default.Close, primary = false, onClick = onCancel)
                     record.status == DownloadStatus.SUCCEEDED -> {
-                        HighRadiusButton("開啟檔案", icon = Icons.Default.PlayArrow, primary = true, onClick = onOpen)
-                        HighRadiusButton("分享", icon = Icons.Default.Share, primary = false, onClick = onShare)
-                        HighRadiusButton("刪除檔案", icon = Icons.Default.Delete, primary = false, onClick = onDelete)
+                        HighRadiusButton(strings.btnOpenFile, icon = Icons.Default.PlayArrow, primary = true, onClick = onOpen)
+                        HighRadiusButton(strings.btnShare, icon = Icons.Default.Share, primary = false, onClick = onShare)
+                        HighRadiusButton(strings.btnDeleteFile, icon = Icons.Default.Delete, primary = false, onClick = onDelete)
                     }
                     else -> {
-                        HighRadiusButton("重試", icon = Icons.Default.Refresh, primary = true, onClick = onRetry)
-                        HighRadiusButton("刪除紀錄", icon = Icons.Default.Delete, primary = false, onClick = onDelete)
+                        HighRadiusButton(strings.btnRetry, icon = Icons.Default.Refresh, primary = true, onClick = onRetry)
+                        HighRadiusButton(strings.btnDeleteRecord, icon = Icons.Default.Delete, primary = false, onClick = onDelete)
                     }
                 }
             }
@@ -1481,30 +1595,8 @@ private fun SectionTitle(
     }
 }
 
-@Composable
-private fun SectionSurface(
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(ContentSurface)
-            .border(1.dp, ContentBorder, RoundedCornerShape(22.dp)),
-        content = content,
-    )
-}
-
-@Composable
-private fun ContentDivider() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp)
-            .height(1.dp)
-            .background(ContentBorder.copy(alpha = 0.72f)),
-    )
-}
+private fun formatDate(timestamp: Long): String =
+    SimpleDateFormat("MM/dd HH:mm", Locale.TAIWAN).format(Date(timestamp))
 
 @Composable
 private fun EmptyRecordsState(
@@ -1548,10 +1640,6 @@ private fun EmptyRecordsState(
         )
     }
 }
-
-// -----------------------------------------------------------------------------
-// REUSABLE MINIMALIST MATTE COMPONENTS
-// -----------------------------------------------------------------------------
 
 @Composable
 private fun MatteCard(content: @Composable ColumnScope.() -> Unit) {
@@ -1740,24 +1828,24 @@ private fun statusColor(status: DownloadStatus): Color = when (status) {
     DownloadStatus.CANCELLED -> MatteTextMuted
 }
 
-private fun statusLabel(status: DownloadStatus): String = when (status) {
-    DownloadStatus.QUEUED -> "等待中"
-    DownloadStatus.RUNNING -> "下載中"
-    DownloadStatus.PAUSED -> "已暫停"
-    DownloadStatus.SUCCEEDED -> "已完成"
-    DownloadStatus.FAILED -> "下載失敗"
-    DownloadStatus.CANCELLED -> "已取消"
+private fun statusLabel(status: DownloadStatus, strings: AppStrings): String = when (status) {
+    DownloadStatus.QUEUED -> strings.statusQueued
+    DownloadStatus.RUNNING -> strings.statusRunning
+    DownloadStatus.PAUSED -> strings.statusPaused
+    DownloadStatus.SUCCEEDED -> strings.statusSucceeded
+    DownloadStatus.FAILED -> strings.statusFailed
+    DownloadStatus.CANCELLED -> strings.statusCancelled
 }
 
-private fun estimatedSize(items: List<MediaItem>): String =
+private fun estimatedSize(items: List<MediaItem>, strings: AppStrings): String =
     if (items.all { it.contentLength != null }) {
-        formatBytes(items.sumOf { it.contentLength ?: 0L })
+        formatBytes(items.sumOf { it.contentLength ?: 0L }, strings)
     } else {
-        "未知"
+        strings.downloadBytesUnknown
     }
 
-private fun formatBytes(bytes: Long?): String {
-    bytes ?: return "未知大小"
+private fun formatBytes(bytes: Long?, strings: AppStrings): String {
+    bytes ?: return strings.downloadBytesUnknown
     return when {
         bytes >= 1_073_741_824 -> String.format(Locale.US, "%.1f GB", bytes / 1_073_741_824.0)
         bytes >= 1_048_576 -> String.format(Locale.US, "%.1f MB", bytes / 1_048_576.0)
@@ -1765,6 +1853,3 @@ private fun formatBytes(bytes: Long?): String {
         else -> "$bytes B"
     }
 }
-
-private fun formatDate(timestamp: Long): String =
-    SimpleDateFormat("MM/dd HH:mm", Locale.TAIWAN).format(Date(timestamp))

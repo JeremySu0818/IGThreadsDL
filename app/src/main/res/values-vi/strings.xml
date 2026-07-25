@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Trình tải xuống IG &amp; Threads</string>
+    <string name="overlay_notification_title">Công cụ nổi IG/Threads đang hoạt động</string>
+    <string name="overlay_notification_text">Sao chép liên kết IG / Threads và nhấn vào bong bóng nổi để phân tích</string>
+    <string name="overlay_notification_action_stop">Dừng</string>
+    <string name="media_kind_video">Video</string>
+    <string name="media_kind_image">Hình ảnh</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Công cụ nổi tự động IG / Threads</string>
+    <string name="auto_launch_service_description">Phát hiện mở Instagram hoặc Threads và khởi chạy trình tải xuống nổi theo cài đặt.</string>
+</resources>

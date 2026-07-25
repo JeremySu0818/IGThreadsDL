@@ -461,11 +461,7 @@ class InstagramPublicResolver(
                 thumbnailUrl = images.firstOrNull()?.url ?: items.firstOrNull()?.thumbnailUrl,
                 items = items,
                 isPartial = partial,
-                warnings = if (partial) {
-                    listOf("公開頁面未揭露可驗證的完整輪播結構；僅列出實際解析到的項目，未偽造其餘項目。")
-                } else {
-                    emptyList()
-                },
+                warnings = emptyList(),
             ),
         )
     }

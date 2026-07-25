@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Pobieracz IG i Threads</string>
+    <string name="overlay_notification_title">Pływające narzędzie IG/Threads aktywne</string>
+    <string name="overlay_notification_text">Skopiuj link IG/Threads i dotknij bąbelka, aby przeanalizować</string>
+    <string name="overlay_notification_action_stop">Zatrzymaj</string>
+    <string name="media_kind_video">Wideo</string>
+    <string name="media_kind_image">Zdjęcie</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Automatyczne pływające narzędzie IG / Threads</string>
+    <string name="auto_launch_service_description">Wykrywa otwarcie Instagrama lub Threads i uruchamia pływające narzędzie według ustawień.</string>
+</resources>

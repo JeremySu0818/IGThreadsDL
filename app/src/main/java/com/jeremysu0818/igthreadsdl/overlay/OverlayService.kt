@@ -89,6 +89,9 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+import com.jeremysu0818.igthreadsdl.i18n.AppStrings
+import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
+
 private class OverlayLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
@@ -129,35 +132,49 @@ private class CloseTargetState {
 
 @Composable
 private fun CloseTargetApp(state: CloseTargetState) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.BottomCenter,
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val savedLang = LanguageManager.getSavedLanguage(context)
+    val strings = LanguageManager.getStrings(savedLang)
+    val resolvedLang = LanguageManager.resolveAppLanguage(savedLang)
+    val layoutDirection = if (resolvedLang == com.jeremysu0818.igthreadsdl.i18n.AppLanguage.AR) {
+        androidx.compose.ui.unit.LayoutDirection.Rtl
+    } else {
+        androidx.compose.ui.unit.LayoutDirection.Ltr
+    }
+
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalLayoutDirection provides layoutDirection,
     ) {
-        AnimatedVisibility(
-            visible = state.isVisible,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            Box(modifier = Modifier.padding(bottom = 20.dp)) {
-                Button(
-                    onClick = {},
-                    modifier = Modifier
-                        .width(128.dp)
-                        .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (state.isActive) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        },
-                        contentColor = if (state.isActive) {
-                            MaterialTheme.colorScheme.onError
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    ),
-                ) {
-                    Text(text = "停止")
+            AnimatedVisibility(
+                visible = state.isVisible,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            ) {
+                Box(modifier = Modifier.padding(bottom = 20.dp)) {
+                    Button(
+                        onClick = {},
+                        modifier = Modifier
+                            .width(128.dp)
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (state.isActive) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            contentColor = if (state.isActive) {
+                                MaterialTheme.colorScheme.onError
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        ),
+                    ) {
+                        Text(text = strings.overlayDragToStop)
+                    }
                 }
             }
         }
@@ -211,12 +228,26 @@ class OverlayService : Service() {
     private var closeTargetLifecycle: OverlayLifecycleOwner? = null
     private val closeTargetState = CloseTargetState()
 
+    private val strings: AppStrings
+        get() = LanguageManager.getStrings(LanguageManager.getSavedLanguage(this))
+
+    private val languageSettingsListener =
+        android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == LanguageManager.KEY_LANGUAGE) {
+                createNotificationChannel()
+                updateNotification()
+                if (panelView != null) renderPanel()
+            }
+        }
+
     override fun onCreate() {
         super.onCreate()
         getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
             .edit {
                 putBoolean(PermissionStatus.KEY_OVERLAY_SERVICE_ACTIVE, true)
             }
+        getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(languageSettingsListener)
         createNotificationChannel()
         startAsForeground()
         if (!Settings.canDrawOverlays(this)) {
@@ -266,6 +297,8 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(languageSettingsListener)
         getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
             .edit {
                 putBoolean(PermissionStatus.KEY_OVERLAY_SERVICE_ACTIVE, false)
@@ -289,7 +322,7 @@ class OverlayService : Service() {
             textSize = 22f
             setTextColor(MatteTextPrimaryInt)
             elevation = 12f
-            contentDescription = "IG・Threads 下載懸浮工具"
+            contentDescription = strings.overlayAccessibilityDescription
             setPadding(0, 0, 0, dp(2))
         }
         val savedX = preferences.getInt(KEY_X, resources.displayMetrics.widthPixels - dp(68))
@@ -499,8 +532,6 @@ class OverlayService : Service() {
         }
         setBubbleFocusable(true)
         clipboardReadJob = serviceScope.launch {
-            // Android 10+ only exposes clipboard data to the focused app. Focus is
-            // requested only after this explicit tap and released immediately after.
             kotlinx.coroutines.delay(CLIPBOARD_FOCUS_DELAY_MS)
             try {
                 handleBubbleClick()
@@ -534,8 +565,7 @@ class OverlayService : Service() {
         ) {
             BubbleContentAction.SHOW_CURRENT -> showPanel()
             BubbleContentAction.SHOW_CLIPBOARD_HINT -> {
-                panelHint =
-                    "剪貼簿沒有可支援的 IG / Threads 公開連結。請先複製貼文 URL，再點一次懸浮球。"
+                panelHint = strings.overlayClipboardInvalidHint
                 showPanel()
             }
             BubbleContentAction.RESOLVE_CLIPBOARD -> {
@@ -582,11 +612,22 @@ class OverlayService : Service() {
     private fun renderPanel() {
         val frame = panelView as? FrameLayout ?: return
         frame.removeAllViews()
+
+        val resolvedLang = LanguageManager.resolveAppLanguage(LanguageManager.getSavedLanguage(this))
+        val isRtl = resolvedLang == com.jeremysu0818.igthreadsdl.i18n.AppLanguage.AR
+        val dir = if (isRtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+        val textDir = if (isRtl) View.TEXT_DIRECTION_RTL else View.TEXT_DIRECTION_LTR
+
+        frame.layoutDirection = dir
+        frame.textDirection = textDir
+
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
             background = roundedDrawable(COLOR_PANEL, dp(22).toFloat())
             elevation = 16f
+            layoutDirection = dir
+            textDirection = textDir
         }
         frame.addView(
             content,
@@ -611,32 +652,32 @@ class OverlayService : Service() {
             OverlayPhase.IDLE -> {
                 content.addView(
                     bodyText(
-                        "先複製 Instagram / Threads 公開連結，再點懸浮球開始解析。",
+                        strings.overlayIdleHint,
                         COLOR_MUTED,
                     ).withTopMargin(12),
                 )
             }
             OverlayPhase.RESOLVING -> {
-                content.addView(bodyText("正在讀取公開頁面與媒體資訊…", COLOR_ACCENT).withTopMargin(12))
+                content.addView(bodyText(strings.overlayResolvingText, COLOR_ACCENT).withTopMargin(12))
             }
             OverlayPhase.READY, OverlayPhase.DOWNLOADING -> renderManifest(content)
             OverlayPhase.ERROR -> {
                 content.addView(
                     bodyText(
-                        currentState.errorMessage ?: "發生未知錯誤。",
+                        currentState.errorMessage ?: strings.overlayErrorDefault,
                         COLOR_ERROR,
                     ).withTopMargin(12),
                 )
                 currentState.detectedUrl?.let {
                     content.addView(
-                        primaryButton("重試解析") {
+                        primaryButton(strings.overlayBtnRetryParse) {
                             AppGraph.overlayCoordinator.resolve(it)
                         }.withTopMargin(14),
                     )
                 }
                 if (currentState.manifest != null) {
                     content.addView(
-                        secondaryButton("回到預覽") {
+                        secondaryButton(strings.overlayBtnBackPreview) {
                             AppGraph.overlayCoordinator.clearError()
                         }.withTopMargin(8),
                     )
@@ -676,8 +717,8 @@ class OverlayService : Service() {
             },
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
         )
-        row.addView(iconButton("—", "縮小") { removePanel() })
-        row.addView(iconButton("×", "關閉懸浮工具") { closeOverlay() })
+        row.addView(iconButton("—", strings.overlayBtnMinimize) { removePanel() })
+        row.addView(iconButton("×", strings.overlayBtnClose) { closeOverlay() })
         container.addView(row)
         attachPanelDragGestures(container)
         return container
@@ -742,7 +783,7 @@ class OverlayService : Service() {
         }
         container.addView(
             TextView(this).apply {
-                text = "貼文 URL"
+                text = strings.overlayPostUrlLabel
                 textSize = 11f
                 setTextColor(COLOR_MUTED)
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -755,7 +796,7 @@ class OverlayService : Service() {
         val input = EditText(this).apply {
             setText(panelUrlText)
             setSelection(text.length)
-            hint = "貼上 Instagram / Threads 連結"
+            hint = strings.overlayInputHint
             setHintTextColor(COLOR_MUTED)
             setTextColor(MatteTextPrimaryInt)
             textSize = 12f
@@ -803,7 +844,7 @@ class OverlayService : Service() {
         )
         row.addView(
             primaryButton(
-                text = if (currentState.phase == OverlayPhase.RESOLVING) "解析中" else "解析",
+                text = if (currentState.phase == OverlayPhase.RESOLVING) strings.overlayBtnParsing else strings.overlayBtnParse,
                 enabled = currentState.phase != OverlayPhase.RESOLVING &&
                     currentState.phase != OverlayPhase.DOWNLOADING,
                 action = ::submitPanelUrl,
@@ -833,7 +874,7 @@ class OverlayService : Service() {
         val supportedUrl = UrlNormalizer.extractSupportedUrl(panelUrlText)
         if (supportedUrl == null) {
             panelUrlInput?.apply {
-                error = "請輸入有效的 Instagram 或 Threads 貼文連結"
+                error = strings.overlayInputErrorInvalid
                 requestFocus()
             }
             return
@@ -848,18 +889,18 @@ class OverlayService : Service() {
     private fun renderControlMenu(content: LinearLayout) {
         content.addView(
             bodyText(
-                "懸浮工具控制",
+                strings.overlayControlTitle,
                 COLOR_MUTED,
             ).withTopMargin(12),
         )
         content.addView(
-            secondaryButton("移回右側預設位置") {
+            secondaryButton(strings.overlayBtnResetPosition) {
                 moveToDefaultPosition()
                 removePanel()
             }.withTopMargin(14),
         )
         content.addView(
-            dangerButton("關閉懸浮工具") { closeOverlay() }.withTopMargin(8),
+            dangerButton(strings.overlayBtnClose) { closeOverlay() }.withTopMargin(8),
         )
     }
 
@@ -890,13 +931,13 @@ class OverlayService : Service() {
         }
         content.addView(
             bodyText(
-                "${manifest.items.size} 個項目  ·  原始畫質  ·  ${estimatedSize(manifest.items)}",
+                String.format(strings.overlayItemsSummary, manifest.items.size, estimatedSize(manifest.items)),
                 MatteTextPrimaryInt,
             ).withTopMargin(10),
         )
-        if (manifest.warnings.isNotEmpty()) {
+        if (manifest.isPartial) {
             content.addView(
-                bodyText(manifest.warnings.joinToString("\n"), COLOR_WARNING).withTopMargin(8),
+                bodyText(strings.msgPartialManifest, COLOR_WARNING).withTopMargin(8),
             )
         }
 
@@ -917,9 +958,9 @@ class OverlayService : Service() {
             ).apply { topMargin = dp(8) },
         )
         val downloadLabel = if (currentState.phase == OverlayPhase.DOWNLOADING) {
-            "下載中…"
+            strings.overlayBtnDownloading
         } else {
-            "下載已選項目"
+            strings.overlayBtnDownloadSelected
         }
         content.addView(
             primaryButton(
@@ -930,10 +971,56 @@ class OverlayService : Service() {
             }.withTopMargin(12),
         )
         content.addView(
-            secondaryButton("在 App 開啟") {
+            secondaryButton(strings.overlayBtnOpenInApp) {
                 openInApp(manifest.sourceUrl)
             }.withTopMargin(8),
         )
+    }
+
+    private fun updateNotification() {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        val openIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val stopIntent = PendingIntent.getService(
+            this,
+            1,
+            Intent(this, OverlayService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_download)
+            .setContentTitle(strings.overlayNotificationTitle)
+            .setContentText(strings.overlayNotificationText)
+            .setContentIntent(openIntent)
+            .setOngoing(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .addAction(0, strings.overlayNotificationActionStop, stopIntent)
+            .build()
+        manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun estimatedSize(items: List<MediaItem>): String {
+        val sizes = items.map { it.contentLength }
+        return if (sizes.all { it != null }) {
+            formatBytes(sizes.filterNotNull().sum())
+        } else {
+            strings.downloadBytesUnknown
+        }
+    }
+
+    private fun formatBytes(bytes: Long?): String {
+        bytes ?: return strings.downloadBytesUnknown
+        return when {
+            bytes >= 1_073_741_824 -> String.format(Locale.US, "%.1f GB", bytes / 1_073_741_824.0)
+            bytes >= 1_048_576 -> String.format(Locale.US, "%.1f MB", bytes / 1_048_576.0)
+            bytes >= 1_024 -> String.format(Locale.US, "%.1f KB", bytes / 1_024.0)
+            else -> "$bytes B"
+        }
     }
 
     private fun mediaCheckbox(item: MediaItem, index: Int): View =
@@ -1104,10 +1191,10 @@ class OverlayService : Service() {
         manager.createNotificationChannel(
             NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
-                "IG・Threads 下載懸浮工具",
+                strings.overlayNotificationTitle,
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "顯示可拖曳的媒體解析工具"
+                description = strings.overlayNotificationText
                 setShowBadge(false)
             },
         )
@@ -1128,13 +1215,13 @@ class OverlayService : Service() {
         )
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_download)
-            .setContentTitle(getString(R.string.overlay_notification_title))
-            .setContentText(getString(R.string.overlay_notification_text))
+            .setContentTitle(strings.overlayNotificationTitle)
+            .setContentText(strings.overlayNotificationText)
             .setContentIntent(openIntent)
             .setOngoing(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .addAction(0, "關閉", stopIntent)
+            .addAction(0, strings.overlayNotificationActionStop, stopIntent)
             .build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
@@ -1208,25 +1295,6 @@ class OverlayService : Service() {
             cornerRadius = radius
             setColor(color)
         }
-
-    private fun estimatedSize(items: List<MediaItem>): String {
-        val sizes = items.map { it.contentLength }
-        return if (sizes.all { it != null }) {
-            formatBytes(sizes.filterNotNull().sum())
-        } else {
-            "大小未知"
-        }
-    }
-
-    private fun formatBytes(bytes: Long?): String {
-        bytes ?: return "大小未知"
-        return when {
-            bytes >= 1_073_741_824 -> String.format(Locale.US, "%.1f GB", bytes / 1_073_741_824.0)
-            bytes >= 1_048_576 -> String.format(Locale.US, "%.1f MB", bytes / 1_048_576.0)
-            bytes >= 1_024 -> String.format(Locale.US, "%.1f KB", bytes / 1_024.0)
-            else -> "$bytes B"
-        }
-    }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).roundToInt()

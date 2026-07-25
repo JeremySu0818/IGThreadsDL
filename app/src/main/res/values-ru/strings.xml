@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Загрузчик IG и Threads</string>
+    <string name="overlay_notification_title">Плавающий инструмент IG/Threads активен</string>
+    <string name="overlay_notification_text">Скопируйте ссылку IG/Threads и нажмите на плавающий виджет для анализа</string>
+    <string name="overlay_notification_action_stop">Остановить</string>
+    <string name="media_kind_video">Видео</string>
+    <string name="media_kind_image">Изображение</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Автоматический плавающий инструмент IG / Threads</string>
+    <string name="auto_launch_service_description">Обнаруживает открытие Instagram или Threads и запускает плавающий загрузчик согласно настройкам.</string>
+</resources>

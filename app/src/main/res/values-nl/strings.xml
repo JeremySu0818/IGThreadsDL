@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">IG &amp; Threads Downloader</string>
+    <string name="overlay_notification_title">Zwevende IG/Threads-tool actief</string>
+    <string name="overlay_notification_text">Kopieer een IG/Threads-link en tik op de zwevende bubbel om te analyseren</string>
+    <string name="overlay_notification_action_stop">Stoppen</string>
+    <string name="media_kind_video">Video</string>
+    <string name="media_kind_image">Afbeelding</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Automatische zwevende tool voor IG / Threads</string>
+    <string name="auto_launch_service_description">Detecteert het openen van Instagram of Threads en start de zwevende downloader op basis van instellingen.</string>
+</resources>

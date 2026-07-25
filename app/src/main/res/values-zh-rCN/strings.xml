@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">IG・Threads 下载</string>
+    <string name="overlay_notification_title">IG・Threads 下载悬浮工具运行中</string>
+    <string name="overlay_notification_text">复制 IG / Threads 链接后点击悬浮球即可解析</string>
+    <string name="overlay_notification_action_stop">关闭</string>
+    <string name="media_kind_video">视频</string>
+    <string name="media_kind_image">图片</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">IG／Threads 自动悬浮工具</string>
+    <string name="auto_launch_service_description">检测 Instagram 或 Threads 打开，并按设置启动悬浮下载工具。</string>
+</resources>

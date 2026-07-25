@@ -1,10 +1,12 @@
 package com.jeremysu0818.igthreadsdl.overlay
 
+import com.jeremysu0818.igthreadsdl.AppGraph
 import com.jeremysu0818.igthreadsdl.data.download.AndroidDownloadRepository
 import com.jeremysu0818.igthreadsdl.data.resolver.ResolverRepository
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadStatus
 import com.jeremysu0818.igthreadsdl.domain.model.MediaManifest
 import com.jeremysu0818.igthreadsdl.domain.resolver.ResolverResult
+import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -38,6 +40,9 @@ class OverlayCoordinator(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(OverlayState())
     val state: StateFlow<OverlayState> = _state.asStateFlow()
+
+    private val strings
+        get() = LanguageManager.getStrings(LanguageManager.getSavedLanguage(AppGraph.application))
 
     fun showError(message: String) {
         _state.update {
@@ -82,7 +87,7 @@ class OverlayCoordinator(
                         it.copy(
                             phase = OverlayPhase.ERROR,
                             manifest = null,
-                            errorMessage = result.error.userMessage(),
+                            errorMessage = result.error.userMessage(strings),
                         )
                     }
                 }
@@ -95,7 +100,7 @@ class OverlayCoordinator(
         val selected = manifest.items.filter { it.id in selectedIds }
         if (selected.isEmpty()) {
             _state.update {
-                it.copy(phase = OverlayPhase.ERROR, errorMessage = "請至少選取一個媒體項目。")
+                it.copy(phase = OverlayPhase.ERROR, errorMessage = strings.msgSelectAtLeastOne)
             }
             return
         }
@@ -110,7 +115,7 @@ class OverlayCoordinator(
                         phase = OverlayPhase.ERROR,
                         errorMessage = records.firstNotNullOfOrNull { record ->
                             record.statusMessage
-                        } ?: "無法建立下載。",
+                        } ?: strings.overlayErrorDefault,
                         activeDownloadIds = emptySet(),
                     )
                 }

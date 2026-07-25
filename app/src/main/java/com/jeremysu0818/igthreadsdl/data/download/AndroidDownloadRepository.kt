@@ -37,6 +37,9 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 
+import com.jeremysu0818.igthreadsdl.i18n.AppStrings
+import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
+
 class AndroidDownloadRepository(
     context: Context,
 ) : DownloadRepository {
@@ -49,6 +52,9 @@ class AndroidDownloadRepository(
     private val localId = AtomicLong(-1L)
     private val _records = MutableStateFlow(loadRecords())
     override val records: StateFlow<List<DownloadRecord>> = _records.asStateFlow()
+
+    private val strings: AppStrings
+        get() = LanguageManager.getStrings(LanguageManager.getSavedLanguage(appContext))
 
     private val completionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -87,7 +93,7 @@ class AndroidDownloadRepository(
                     manifest = manifest,
                     item = item,
                     filename = filename,
-                    message = "此媒體是 HLS 串流（m3u8），目前未支援串流合併，未建立假下載。",
+                    message = strings.downloadHlsNotSupported,
                 )
             } else {
                 enqueueOne(manifest, item, filename)
@@ -102,7 +108,7 @@ class AndroidDownloadRepository(
         replaceRecord(managerId) {
             it.copy(
                 status = DownloadStatus.CANCELLED,
-                statusMessage = "已取消",
+                statusMessage = strings.downloadMsgCancelled,
                 updatedAt = System.currentTimeMillis(),
             )
         }
@@ -182,7 +188,7 @@ class AndroidDownloadRepository(
                 snapshot.bytesDownloaded <= 0
             record.copy(
                 status = if (emptyFile) DownloadStatus.FAILED else snapshot.status,
-                statusMessage = if (emptyFile) "下載檔案為空，已標記失敗。" else snapshot.message,
+                statusMessage = if (emptyFile) strings.downloadMsgEmptyFile else snapshot.message,
                 bytesDownloaded = snapshot.bytesDownloaded.coerceAtLeast(0),
                 totalBytes = snapshot.totalBytes?.takeIf { it > 0 },
                 localUri = uri,
@@ -215,7 +221,8 @@ class AndroidDownloadRepository(
             clipData = ClipData.newRawUri(record.filename, uri)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        return startSafely(Intent.createChooser(intent, "分享 ${record.filename}").apply {
+        val chooserTitle = String.format(strings.downloadShareChooserTitle, record.filename)
+        return startSafely(Intent.createChooser(intent, chooserTitle).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
     }
@@ -229,7 +236,7 @@ class AndroidDownloadRepository(
         return try {
             val request = DownloadManager.Request(item.downloadUrl.toUri())
                 .setTitle(filename)
-                .setDescription("下載 ${manifest.platform.value} 媒體")
+                .setDescription(String.format(strings.downloadDescriptionFormat, manifest.platform.value))
                 .setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED,
                 )
@@ -259,7 +266,7 @@ class AndroidDownloadRepository(
                 mimeType = item.mimeType,
                 requestHeaders = item.requestHeaders,
                 status = DownloadStatus.QUEUED,
-                statusMessage = "等待下載",
+                statusMessage = strings.downloadStatusQueued,
                 bytesDownloaded = 0,
                 totalBytes = item.contentLength,
                 localUri = null,
@@ -267,11 +274,11 @@ class AndroidDownloadRepository(
                 updatedAt = now,
             )
         } catch (error: SecurityException) {
-            failedRecord(manifest, item, filename, "下載權限未開：${error.message.orEmpty()}")
+            failedRecord(manifest, item, filename, String.format(strings.downloadErrPermission, error.message.orEmpty()))
         } catch (error: IllegalStateException) {
-            failedRecord(manifest, item, filename, "儲存空間不可用：${error.message.orEmpty()}")
+            failedRecord(manifest, item, filename, String.format(strings.downloadErrStorage, error.message.orEmpty()))
         } catch (error: RuntimeException) {
-            failedRecord(manifest, item, filename, "無法建立下載：${error.message.orEmpty()}")
+            failedRecord(manifest, item, filename, String.format(strings.downloadErrCannotCreate, error.message.orEmpty()))
         }
     }
 
@@ -335,26 +342,26 @@ class AndroidDownloadRepository(
     }
 
     private fun downloadStatusMessage(status: DownloadStatus, reason: Int): String = when (status) {
-        DownloadStatus.QUEUED -> "等待下載"
-        DownloadStatus.RUNNING -> "下載中"
+        DownloadStatus.QUEUED -> strings.downloadStatusQueued
+        DownloadStatus.RUNNING -> strings.downloadStatusRunning
         DownloadStatus.PAUSED -> when (reason) {
-            DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "等待網路連線"
-            DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "等待 Wi-Fi"
-            DownloadManager.PAUSED_WAITING_TO_RETRY -> "系統稍後重試"
-            else -> "下載已暫停"
+            DownloadManager.PAUSED_WAITING_FOR_NETWORK -> strings.downloadStatusPausedNetwork
+            DownloadManager.PAUSED_QUEUED_FOR_WIFI -> strings.downloadStatusPausedWifi
+            DownloadManager.PAUSED_WAITING_TO_RETRY -> strings.downloadStatusPausedRetry
+            else -> strings.downloadStatusPausedDefault
         }
-        DownloadStatus.SUCCEEDED -> "下載完成"
-        DownloadStatus.CANCELLED -> "已取消"
+        DownloadStatus.SUCCEEDED -> strings.downloadStatusSucceeded
+        DownloadStatus.CANCELLED -> strings.downloadMsgCancelled
         DownloadStatus.FAILED -> when (reason) {
-            DownloadManager.ERROR_INSUFFICIENT_SPACE -> "儲存空間不足"
-            DownloadManager.ERROR_FILE_ALREADY_EXISTS -> "重複檔案"
-            DownloadManager.ERROR_DEVICE_NOT_FOUND -> "找不到儲存裝置"
-            DownloadManager.ERROR_FILE_ERROR -> "儲存檔案失敗"
-            DownloadManager.ERROR_HTTP_DATA_ERROR -> "CDN 傳輸失敗"
-            DownloadManager.ERROR_CANNOT_RESUME -> "CDN 不支援續傳"
-            DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "CDN 重新導向次數過多"
-            DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "CDN 回傳不支援的 HTTP 狀態"
-            else -> "下載失敗（錯誤碼 $reason）"
+            DownloadManager.ERROR_INSUFFICIENT_SPACE -> strings.downloadStatusFailedSpace
+            DownloadManager.ERROR_FILE_ALREADY_EXISTS -> strings.downloadStatusFailedDuplicate
+            DownloadManager.ERROR_DEVICE_NOT_FOUND -> strings.downloadStatusFailedNoDevice
+            DownloadManager.ERROR_FILE_ERROR -> strings.downloadStatusFailedFileErr
+            DownloadManager.ERROR_HTTP_DATA_ERROR -> strings.downloadStatusFailedCdnData
+            DownloadManager.ERROR_CANNOT_RESUME -> strings.downloadStatusFailedCdnResume
+            DownloadManager.ERROR_TOO_MANY_REDIRECTS -> strings.downloadStatusFailedCdnRedirect
+            DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> strings.downloadStatusFailedCdnHttp
+            else -> String.format(strings.downloadStatusFailedCode, reason)
         }
     }
 

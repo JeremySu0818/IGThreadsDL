@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">IG・Threads 다운로더</string>
+    <string name="overlay_notification_title">IG・Threads 다운로드 플로팅 도구 실행 중</string>
+    <string name="overlay_notification_text">IG / Threads 링크 복사 후 플로팅 아이콘을 탭하여 분석</string>
+    <string name="overlay_notification_action_stop">중지</string>
+    <string name="media_kind_video">동영상</string>
+    <string name="media_kind_image">이미지</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">IG / Threads 자동 플로팅 도구</string>
+    <string name="auto_launch_service_description">Instagram 또는 Threads 실행을 감지하여 설정에 따라 플로팅 다운로더를 실행합니다.</string>
+</resources>

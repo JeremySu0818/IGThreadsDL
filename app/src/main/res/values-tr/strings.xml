@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">IG ve Threads İndirici</string>
+    <string name="overlay_notification_title">IG/Threads Yüzen Araç Aktif</string>
+    <string name="overlay_notification_text">Çözümlemek için bir IG/Threads bağlantısını kopyalayın ve yüzen balona dokunun</string>
+    <string name="overlay_notification_action_stop">Durdur</string>
+    <string name="media_kind_video">Video</string>
+    <string name="media_kind_image">Fotoğraf</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">IG / Threads Otomatik Yüzen Araç</string>
+    <string name="auto_launch_service_description">Instagram veya Threads\'in açıldığını algılar ve ayarlara göre yüzen indiriciyi başlatır.</string>
+</resources>

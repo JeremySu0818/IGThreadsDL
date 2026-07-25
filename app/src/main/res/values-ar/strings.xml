@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">مُنزل IG و Threads</string>
+    <string name="overlay_notification_title">أداة IG/Threads العائمة نشطة</string>
+    <string name="overlay_notification_text">انسخ رابط IG / Threads واضغط على الفقاعة العائمة للتحليل</string>
+    <string name="overlay_notification_action_stop">إيقاف</string>
+    <string name="media_kind_video">فيديو</string>
+    <string name="media_kind_image">صورة</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">أداة التنزيل العائمة التلقائية لـ IG / Threads</string>
+    <string name="auto_launch_service_description">يكتشف فتح Instagram أو Threads ويشغل أداة التنزيل العائمة بناءً على الإعدادات.</string>
+</resources>

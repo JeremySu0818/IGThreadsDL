@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Descargador de IG y Threads</string>
+    <string name="overlay_notification_title">Herramienta flotante de IG/Threads activa</string>
+    <string name="overlay_notification_text">Copia un enlace de IG/Threads y toca la burbuja para analizar</string>
+    <string name="overlay_notification_action_stop">Detener</string>
+    <string name="media_kind_video">Vídeo</string>
+    <string name="media_kind_image">Imagen</string>
+    <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
+    <string name="auto_launch_service_label">Herramienta flotante automática para IG/Threads</string>
+    <string name="auto_launch_service_description">Detecta la apertura de Instagram o Threads y activa el descargador flotante según la configuración.</string>
+</resources>
