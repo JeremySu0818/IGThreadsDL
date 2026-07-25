@@ -50,6 +50,7 @@ object PermissionStatus {
             .edit {
                 putBoolean(KEY_AUTO_LAUNCH_TARGET_APPS, enabled)
             }
+        if (!enabled) stopAutoOverlay(context)
     }
 
     fun isAutoLaunchDetectorEnabled(context: Context): Boolean {
@@ -73,18 +74,52 @@ object PermissionStatus {
         context.getSharedPreferences(OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
             .edit {
                 putBoolean(KEY_OVERLAY_ENABLED, true)
+                putBoolean(KEY_AUTO_OVERLAY_ACTIVE, false)
             }
+        launchOverlayService(context)
+        return true
+    }
+
+    fun startAutoOverlay(context: Context): Boolean {
+        if (!Settings.canDrawOverlays(context)) return false
+        val preferences = context.getSharedPreferences(
+            OVERLAY_PREFERENCES,
+            Context.MODE_PRIVATE,
+        )
+        if (preferences.getBoolean(KEY_OVERLAY_SERVICE_ACTIVE, false)) return true
+
+        preferences.edit {
+            putBoolean(KEY_AUTO_OVERLAY_ACTIVE, true)
+        }
+        launchOverlayService(context)
+        return true
+    }
+
+    fun stopAutoOverlay(context: Context) {
+        val preferences = context.getSharedPreferences(
+            OVERLAY_PREFERENCES,
+            Context.MODE_PRIVATE,
+        )
+        if (!preferences.getBoolean(KEY_AUTO_OVERLAY_ACTIVE, false)) return
+
+        preferences.edit {
+            putBoolean(KEY_AUTO_OVERLAY_ACTIVE, false)
+        }
+        context.stopService(Intent(context, OverlayService::class.java))
+    }
+
+    private fun launchOverlayService(context: Context) {
         ContextCompat.startForegroundService(
             context,
             Intent(context, OverlayService::class.java),
         )
-        return true
     }
 
     fun stopOverlay(context: Context) {
         context.getSharedPreferences(OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
             .edit {
                 putBoolean(KEY_OVERLAY_ENABLED, false)
+                putBoolean(KEY_AUTO_OVERLAY_ACTIVE, false)
             }
         context.stopService(Intent(context, OverlayService::class.java))
     }
@@ -105,4 +140,6 @@ object PermissionStatus {
     const val OVERLAY_PREFERENCES = "overlay_preferences"
     const val KEY_OVERLAY_ENABLED = "overlay_enabled"
     const val KEY_AUTO_LAUNCH_TARGET_APPS = "auto_launch_target_apps"
+    const val KEY_AUTO_OVERLAY_ACTIVE = "auto_overlay_active"
+    const val KEY_OVERLAY_SERVICE_ACTIVE = "overlay_service_active"
 }

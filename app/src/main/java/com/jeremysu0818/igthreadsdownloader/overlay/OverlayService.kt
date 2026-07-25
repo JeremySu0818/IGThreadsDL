@@ -64,6 +64,10 @@ class OverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
+            .edit {
+                putBoolean(PermissionStatus.KEY_OVERLAY_SERVICE_ACTIVE, true)
+            }
         createNotificationChannel()
         startAsForeground()
         if (!Settings.canDrawOverlays(this)) {
@@ -98,6 +102,10 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
+            .edit {
+                putBoolean(PermissionStatus.KEY_OVERLAY_SERVICE_ACTIVE, false)
+            }
         serviceScope.cancel()
         removePanel()
         if (::windowManager.isInitialized && ::bubbleView.isInitialized) {

@@ -28,7 +28,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -175,7 +175,7 @@ fun MainScreen(
                     title = "下載佇列",
                     subtitle = "查看進行中的下載工作與即時進度。",
                     emptyTitle = "目前沒有下載中的工作",
-                    emptyBody = "在「解析」貼上 IG 或 Threads 連結後，下載進度會顯示在這裡。",
+                    emptyBody = "在「首頁」貼上 IG 或 Threads 連結後，下載進度會顯示在這裡。",
                     onCancel = viewModel::cancel,
                     onRetry = viewModel::retry,
                     onOpen = viewModel::open,
@@ -184,7 +184,7 @@ fun MainScreen(
                 )
                 MainTab.HISTORY -> RecordsPage(
                     records = state.records.filter { !it.isActive },
-                    title = "下載紀錄",
+                    title = "歷史紀錄",
                     subtitle = "管理已完成、失敗或取消的檔案。",
                     emptyTitle = "尚無歷史紀錄",
                     emptyBody = "已下載完成或取消的檔案紀錄會存放在這裡。",
@@ -233,7 +233,7 @@ private fun BottomNavBar(
 ) {
     val items = remember(activeCount, historyCount) {
         listOf(
-            NavItem(MainTab.DOWNLOAD, "解析", Icons.Default.Download, 0),
+            NavItem(MainTab.DOWNLOAD, "首頁", Icons.Default.Download, 0),
             NavItem(MainTab.QUEUE, "佇列", Icons.Default.Bolt, activeCount),
             NavItem(MainTab.HISTORY, "紀錄", Icons.Default.History, historyCount),
             NavItem(MainTab.SETTINGS, "設定", Icons.Default.Settings, 0),
@@ -383,21 +383,19 @@ private fun DownloadPage(
             .fillMaxSize()
             .background(ContentBackground),
         contentPadding = PaddingValues(
-            start = 20.dp,
-            top = 20.dp,
-            end = 20.dp,
+            start = 14.dp,
+            top = 8.dp,
+            end = 14.dp,
             bottom = 112.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            ContentFrame {
-                PageHeader(
-                    eyebrow = "IG + THREADS",
-                    title = "儲存公開貼文",
-                    subtitle = "貼上連結、確認媒體，再直接下載到裝置。",
-                )
-            }
+            RecordsPageHeader(
+                title = "首頁",
+                subtitle = null,
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
         }
         item {
             ContentFrame {
@@ -411,21 +409,37 @@ private fun DownloadPage(
             }
         }
         state.errorMessage?.let { message ->
-            item { ContentFrame { SimpleBanner(message, MatteRose) } }
+            item {
+                ContentFrame {
+                    AiSettingsGroup {
+                        CompactStatusMessage(message, MatteRose)
+                    }
+                }
+            }
         }
         state.noticeMessage?.let { message ->
-            item { ContentFrame { SimpleBanner(message, MatteEmerald) } }
+            item {
+                ContentFrame {
+                    AiSettingsGroup {
+                        CompactStatusMessage(message, MatteEmerald)
+                    }
+                }
+            }
         }
         state.manifest?.let { manifest ->
             item {
                 ContentFrame {
-                    ManifestCard(
-                        manifest = manifest,
-                        selectedIds = state.selectedIds,
-                        onToggleItem = onToggleItem,
-                        onSelectAll = onSelectAll,
-                        onDownload = onDownload,
-                    )
+                    AiSettingsGroup {
+                        Box(Modifier.padding(18.dp)) {
+                            ManifestCard(
+                                manifest = manifest,
+                                selectedIds = state.selectedIds,
+                                onToggleItem = onToggleItem,
+                                onSelectAll = onSelectAll,
+                                onDownload = onDownload,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -589,20 +603,7 @@ private fun SettingsPage(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(68.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "Settings",
-                        color = ContentTextPrimary,
-                        fontSize = 22.sp,
-                        lineHeight = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+                CompactPageHeader("Settings")
             }
             item {
                 AiSettingsGroup {
@@ -996,84 +997,86 @@ private fun UrlInputCard(
     onPaste: () -> Unit,
     onParse: () -> Unit,
 ) {
-    Column {
-        SectionTitle(
-            title = "貼文連結",
-            subtitle = "支援 Instagram 貼文、Reels 與 Threads 公開貼文。",
-        )
-        Spacer(Modifier.height(10.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(ContentSurface)
-                .border(1.dp, ContentBorder, RoundedCornerShape(22.dp))
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-        ) {
-            Column {
-                Row(verticalAlignment = Alignment.Top) {
-                    Icon(
-                        imageVector = Icons.Default.Link,
-                        contentDescription = null,
-                        tint = ContentAccent,
-                        modifier = Modifier
-                            .padding(top = 1.dp)
-                            .size(18.dp),
+    AiSettingsGroup {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Link,
+                    contentDescription = null,
+                    tint = ContentTextPrimary,
+                    modifier = Modifier.size(24.dp),
+                )
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "貼文連結",
+                        color = ContentTextPrimary,
+                        fontSize = 17.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.Bold,
                     )
-                    Spacer(Modifier.width(12.dp))
-                    BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(64.dp),
-                        textStyle = TextStyle(
-                            color = ContentTextPrimary,
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp,
-                        ),
-                        minLines = 2,
-                        maxLines = 3,
-                        cursorBrush = SolidColor(ContentAccent),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { onParse() }),
-                        decorationBox = { innerTextField ->
-                            Box {
-                                if (value.isBlank()) {
-                                    Text(
-                                        "https://www.instagram.com/p/…",
-                                        color = ContentTextMuted,
-                                        fontSize = 14.sp,
-                                        lineHeight = 20.sp,
-                                    )
-                                }
-                                innerTextField()
-                            }
-                        },
+                    Text(
+                        text = "支援 Instagram、Reels 與 Threads 公開貼文",
+                        color = ContentTextMuted,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
                     )
                 }
-                ContentDivider()
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    HighRadiusButton(
-                        text = "貼上",
-                        icon = Icons.Default.ContentPaste,
-                        primary = false,
-                        modifier = Modifier.weight(1f),
-                        onClick = onPaste,
-                    )
-                    HighRadiusButton(
-                        text = if (isResolving) "解析中…" else "解析連結",
-                        icon = Icons.AutoMirrored.Filled.ArrowForward,
-                        primary = true,
-                        enabled = !isResolving,
-                        modifier = Modifier.weight(1f),
-                        onClick = onParse,
-                    )
-                }
+            }
+            Spacer(Modifier.height(16.dp))
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(74.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(ContentBackground)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                textStyle = TextStyle(
+                    color = ContentTextPrimary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                ),
+                minLines = 2,
+                maxLines = 3,
+                cursorBrush = SolidColor(ContentAccent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onParse() }),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (value.isBlank()) {
+                            Text(
+                                "https://www.instagram.com/p/…",
+                                color = ContentTextMuted,
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp,
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                HighRadiusButton(
+                    text = "貼上",
+                    icon = Icons.Default.ContentPaste,
+                    primary = false,
+                    modifier = Modifier.weight(1f),
+                    onClick = onPaste,
+                )
+                HighRadiusButton(
+                    text = if (isResolving) "解析中…" else "解析連結",
+                    icon = Icons.AutoMirrored.Filled.ArrowForward,
+                    primary = true,
+                    enabled = !isResolving,
+                    modifier = Modifier.weight(1f),
+                    onClick = onParse,
+                )
             }
         }
     }
@@ -1232,17 +1235,13 @@ private fun RecordsPage(
         modifier = Modifier
             .fillMaxSize()
             .background(ContentBackground),
-        contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(start = 26.dp, top = 8.dp, end = 26.dp, bottom = 112.dp),
     ) {
         item {
-            ContentFrame {
-                PageHeader(
-                    eyebrow = if (records.isEmpty()) "LIBRARY" else "${records.size} ITEMS",
-                    title = title,
-                    subtitle = subtitle,
-                )
-            }
+            RecordsPageHeader(
+                title = title,
+                subtitle = if (records.isEmpty()) subtitle else "$subtitle · ${records.size} 個項目",
+            )
         }
         if (records.isEmpty()) {
             item {
@@ -1254,10 +1253,11 @@ private fun RecordsPage(
                 }
             }
         }
-        items(records, key = { it.managerId }) { record ->
+        itemsIndexed(records, key = { _, record -> record.managerId }) { index, record ->
             ContentFrame {
                 RecordCard(
                     record = record,
+                    showDivider = index != records.lastIndex,
                     onCancel = { onCancel(record.managerId) },
                     onRetry = { onRetry(record.managerId) },
                     onOpen = { onOpen(record) },
@@ -1270,102 +1270,131 @@ private fun RecordsPage(
 }
 
 @Composable
+private fun RecordsPageHeader(
+    title: String,
+    subtitle: String?,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.padding(top = 4.dp, bottom = 20.dp),
+    ) {
+        Text(
+            text = title,
+            color = ContentTextPrimary,
+            fontSize = 32.sp,
+            lineHeight = 40.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.6f).sp,
+        )
+        if (subtitle != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = subtitle,
+                color = ContentTextMuted,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        } else {
+            Spacer(Modifier.height(28.dp))
+        }
+    }
+}
+
+@Composable
 private fun RecordCard(
     record: DownloadRecord,
+    showDivider: Boolean,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     onOpen: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    SectionSurface {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 15.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(statusColor(record.status).copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = if (record.mediaType == MediaItemType.VIDEO) Icons.Default.VideoLibrary else Icons.Default.Image,
-                    contentDescription = null,
-                    tint = statusColor(record.status),
-                    modifier = Modifier.size(20.dp)
-                )
+    Column {
+        Column(Modifier.padding(horizontal = 4.dp, vertical = 20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        record.filename,
+                        color = ContentTextPrimary,
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "${formatDate(record.updatedAt)} · ${record.platform.value} · ${statusLabel(record.status)}",
+                        color = ContentTextMuted,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    record.filename,
-                    color = ContentTextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    "${record.platform.value}  ·  ${formatDate(record.updatedAt)}",
-                    color = ContentTextMuted,
-                    fontSize = 11.sp,
-                )
-            }
-            SimpleBadge(statusLabel(record.status), statusColor(record.status))
-        }
 
-        val progress = record.progress
-        if (progress != null && record.isActive) {
+            val progress = record.progress
+            if (progress != null && record.isActive) {
+                Spacer(Modifier.height(14.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(CircleShape)
+                        .background(ContentSubtleSurface),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(progress)
+                            .fillMaxHeight()
+                            .clip(CircleShape)
+                            .background(ContentAccent),
+                    )
+                }
+            }
+
             Spacer(Modifier.height(10.dp))
+
+            Text(
+                buildString {
+                    append(formatBytes(record.bytesDownloaded))
+                    record.totalBytes?.let { append(" / ${formatBytes(it)}") }
+                    record.statusMessage?.let { append("  ·  $it") }
+                },
+                color = if (record.status == DownloadStatus.FAILED) MatteRose else ContentTextMuted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                when {
+                    record.isActive -> HighRadiusButton("取消", icon = Icons.Default.Close, primary = false, onClick = onCancel)
+                    record.status == DownloadStatus.SUCCEEDED -> {
+                        HighRadiusButton("開啟檔案", icon = Icons.Default.PlayArrow, primary = true, onClick = onOpen)
+                        HighRadiusButton("分享", icon = Icons.Default.Share, primary = false, onClick = onShare)
+                        HighRadiusButton("刪除檔案", icon = Icons.Default.Delete, primary = false, onClick = onDelete)
+                    }
+                    else -> {
+                        HighRadiusButton("重試", icon = Icons.Default.Refresh, primary = true, onClick = onRetry)
+                        HighRadiusButton("刪除紀錄", icon = Icons.Default.Delete, primary = false, onClick = onDelete)
+                    }
+                }
+            }
+        }
+        if (showDivider) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(CircleShape)
-                    .background(ContentSubtleSurface),
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth(progress)
-                        .fillMaxHeight()
-                        .clip(CircleShape)
-                        .background(ContentAccent),
-                )
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            buildString {
-                append(formatBytes(record.bytesDownloaded))
-                record.totalBytes?.let { append(" / ${formatBytes(it)}") }
-                record.statusMessage?.let { append("  ·  $it") }
-            },
-            color = if (record.status == DownloadStatus.FAILED) MatteRose else ContentTextMuted,
-            fontSize = 11.sp,
-            lineHeight = 16.sp,
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            when {
-                record.isActive -> HighRadiusButton("取消", icon = Icons.Default.Close, primary = false, onClick = onCancel)
-                record.status == DownloadStatus.SUCCEEDED -> {
-                    HighRadiusButton("開啟檔案", icon = Icons.Default.PlayArrow, primary = true, onClick = onOpen)
-                    HighRadiusButton("分享", icon = Icons.Default.Share, primary = false, onClick = onShare)
-                    HighRadiusButton("刪除檔案", icon = Icons.Default.Delete, primary = false, onClick = onDelete)
-                }
-                else -> {
-                    HighRadiusButton("重試", icon = Icons.Default.Refresh, primary = true, onClick = onRetry)
-                    HighRadiusButton("刪除紀錄", icon = Icons.Default.Delete, primary = false, onClick = onDelete)
-                }
-            }
-        }
+                    .height(1.dp)
+                    .background(ContentBorder.copy(alpha = 0.7f)),
+            )
         }
     }
 }
@@ -1388,35 +1417,21 @@ private fun ContentFrame(
 }
 
 @Composable
-private fun PageHeader(
-    eyebrow: String,
+private fun CompactPageHeader(
     title: String,
-    subtitle: String,
 ) {
-    Column {
-        Text(
-            text = eyebrow,
-            color = ContentAccent,
-            fontSize = 11.sp,
-            lineHeight = 15.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.4.sp,
-        )
-        Spacer(Modifier.height(6.dp))
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(68.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(
             text = title,
             color = ContentTextPrimary,
-            fontSize = 30.sp,
-            lineHeight = 36.sp,
+            fontSize = 22.sp,
+            lineHeight = 28.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.5f).sp,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = subtitle,
-            color = ContentTextMuted,
-            fontSize = 14.sp,
-            lineHeight = 21.sp,
         )
     }
 }
@@ -1562,7 +1577,7 @@ private fun EmptyRecordsState(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 76.dp, bottom = 40.dp),
+            .padding(horizontal = 20.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -1745,6 +1760,35 @@ private fun SimpleBanner(text: String, color: Color) {
             color = color,
             fontSize = 12.sp,
             lineHeight = 17.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun CompactStatusMessage(
+    text: String,
+    indicatorColor: Color,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(indicatorColor),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = text,
+            color = ContentTextMuted,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f),
         )
