@@ -21,6 +21,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -33,8 +34,41 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import coil.load
 import com.jeremysu0818.igthreadsdownloader.AppGraph
 import com.jeremysu0818.igthreadsdownloader.MainActivity
@@ -55,6 +89,107 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+private class OverlayLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    private val store = ViewModelStore()
+
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
+    override val viewModelStore: ViewModelStore get() = store
+
+    fun init() {
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    }
+
+    fun destroy() {
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        store.clear()
+    }
+}
+
+private class CloseTargetState {
+    var isVisible by mutableStateOf(false)
+    var isActive by mutableStateOf(false)
+
+    fun show() {
+        isVisible = true
+    }
+
+    fun hide() {
+        isVisible = false
+        isActive = false
+    }
+}
+
+@Composable
+private fun CloseTargetApp(state: CloseTargetState) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        AnimatedVisibility(
+            visible = state.isVisible,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        ) {
+            Box(modifier = Modifier.padding(bottom = 20.dp)) {
+                Button(
+                    onClick = {},
+                    modifier = Modifier
+                        .width(128.dp)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (state.isActive) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        contentColor = if (state.isActive) {
+                            MaterialTheme.colorScheme.onError
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    ),
+                ) {
+                    Text(text = "停止")
+                }
+            }
+        }
+    }
+}
+
+private fun isPointInsideCapsule(
+    x: Float,
+    y: Float,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+): Boolean {
+    val radius = height / 2f
+    val centerY = top + radius
+    val leftCircleCenterX = left + radius
+    val rightCircleCenterX = left + width - radius
+
+    return when {
+        x in leftCircleCenterX..rightCircleCenterX && y in top..(top + height) -> true
+        x < leftCircleCenterX -> (x - leftCircleCenterX) * (x - leftCircleCenterX) +
+            (y - centerY) * (y - centerY) <= radius * radius
+        x > rightCircleCenterX -> (x - rightCircleCenterX) * (x - rightCircleCenterX) +
+            (y - centerY) * (y - centerY) <= radius * radius
+        else -> false
+    }
+}
+
+internal fun shouldCloseAfterDrag(actionMasked: Int, isOverCloseTarget: Boolean): Boolean =
+    actionMasked == MotionEvent.ACTION_UP && isOverCloseTarget
+
 class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var bubbleView: AccessibleBubbleView
@@ -72,6 +207,9 @@ class OverlayService : Service() {
     private var lastOutsideDismissAt = 0L
     private var panelUrlText = ""
     private var panelUrlInput: EditText? = null
+    private var closeTargetView: ComposeView? = null
+    private var closeTargetLifecycle: OverlayLifecycleOwner? = null
+    private val closeTargetState = CloseTargetState()
 
     override fun onCreate() {
         super.onCreate()
@@ -134,6 +272,7 @@ class OverlayService : Service() {
             }
         serviceScope.cancel()
         removePanel()
+        removeCloseTargetView()
         if (::windowManager.isInitialized && ::bubbleView.isInitialized) {
             runCatching { windowManager.removeView(bubbleView) }
         }
@@ -160,7 +299,8 @@ class OverlayService : Service() {
             dp(56),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -177,6 +317,52 @@ class OverlayService : Service() {
             .onFailure { stopSelf() }
     }
 
+    private fun createCloseTargetView() {
+        if (closeTargetView != null) return
+
+        val density = resources.displayMetrics.density
+        val closeTargetHeightPx = (112 * density).roundToInt()
+        val closeTargetParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            closeTargetHeightPx,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            alpha = 1f
+        }
+
+        val owner = OverlayLifecycleOwner().apply { init() }
+        val cView = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeViewModelStoreOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            setContent {
+                IGThreadsDownloaderTheme {
+                    CloseTargetApp(closeTargetState)
+                }
+            }
+        }
+        runCatching { windowManager.addView(cView, closeTargetParams) }
+        closeTargetView = cView
+        closeTargetLifecycle = owner
+    }
+
+    private fun removeCloseTargetView() {
+        closeTargetState.hide()
+        closeTargetView?.let { view ->
+            if (::windowManager.isInitialized) {
+                runCatching { windowManager.removeView(view) }
+            }
+        }
+        closeTargetView = null
+        closeTargetLifecycle?.destroy()
+        closeTargetLifecycle = null
+    }
+
     private fun attachBubbleGestures() {
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
         var downRawX = 0f
@@ -186,6 +372,11 @@ class OverlayService : Service() {
         var moved = false
         var longPressed = false
         var longPressJob: Job? = null
+
+        val density = resources.displayMetrics.density
+        val closeCapsuleWidthPx = (128 * density).roundToInt()
+        val closeCapsuleHeightPx = (48 * density).roundToInt()
+        val closeCapsuleBottomMarginPx = (20 * density).roundToInt()
 
         bubbleView.setOnClickListener { beginBubbleAction() }
         bubbleView.setOnLongClickListener {
@@ -204,6 +395,8 @@ class OverlayService : Service() {
                     moved = false
                     longPressed = false
                     longPressJob?.cancel()
+                    createCloseTargetView()
+                    closeTargetState.show()
                     longPressJob = serviceScope.launch {
                         kotlinx.coroutines.delay(ViewConfiguration.getLongPressTimeout().toLong())
                         if (!moved) {
@@ -232,15 +425,43 @@ class OverlayService : Service() {
                             windowManager.updateViewLayout(bubbleView, bubbleParams)
                             updatePanelPosition()
                         }
+
+                        val screenWidthPixels = resources.displayMetrics.widthPixels
+                        val screenHeightPixels = resources.displayMetrics.heightPixels
+                        val capsuleLeft = (screenWidthPixels - closeCapsuleWidthPx) / 2f
+                        val capsuleTop = (
+                            screenHeightPixels - closeCapsuleBottomMarginPx - closeCapsuleHeightPx
+                        ).toFloat()
+                        val isOverCloseTarget = isPointInsideCapsule(
+                            x = event.rawX,
+                            y = event.rawY,
+                            left = capsuleLeft,
+                            top = capsuleTop,
+                            width = closeCapsuleWidthPx.toFloat(),
+                            height = closeCapsuleHeightPx.toFloat(),
+                        )
+                        if (isOverCloseTarget && !closeTargetState.isActive) {
+                            closeTargetView?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        }
+                        closeTargetState.isActive = isOverCloseTarget
                     }
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     longPressJob?.cancel()
-                    if (event.actionMasked == MotionEvent.ACTION_UP && !moved && !longPressed) {
-                        view.performClick()
-                    } else if (moved) {
-                        snapBubbleToEdge()
+                    val shouldClose = shouldCloseAfterDrag(
+                        actionMasked = event.actionMasked,
+                        isOverCloseTarget = closeTargetState.isActive,
+                    )
+                    removeCloseTargetView()
+                    if (shouldClose) {
+                        closeOverlay()
+                    } else if (event.actionMasked == MotionEvent.ACTION_UP) {
+                        if (!moved && !longPressed) {
+                            view.performClick()
+                        } else if (moved) {
+                            snapBubbleToEdge()
+                        }
                     }
                     true
                 }
@@ -327,7 +548,8 @@ class OverlayService : Service() {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT,
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
@@ -417,6 +639,22 @@ class OverlayService : Service() {
     }
 
     private fun buildHeader(): View {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val handleBar = View(this).apply {
+            background = roundedDrawable(
+                Color.argb(76, 255, 255, 255),
+                2.5f * resources.displayMetrics.density,
+            )
+        }
+        container.addView(
+            handleBar,
+            LinearLayout.LayoutParams(dp(36), dp(5)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = dp(6)
+            },
+        )
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -433,7 +671,62 @@ class OverlayService : Service() {
         )
         row.addView(iconButton("—", "縮小") { removePanel() })
         row.addView(iconButton("×", "關閉懸浮工具") { closeOverlay() })
-        return row
+        container.addView(row)
+        attachPanelDragGestures(container)
+        return container
+    }
+
+    private fun attachPanelDragGestures(dragHandle: View) {
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        var downRawX = 0f
+        var downRawY = 0f
+        var startX = 0
+        var startY = 0
+        var moved = false
+
+        dragHandle.setOnTouchListener { _, event ->
+            val params = panelParams ?: return@setOnTouchListener false
+            val pView = panelView ?: return@setOnTouchListener false
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    val location = IntArray(2)
+                    pView.getLocationOnScreen(location)
+                    startX = location[0]
+                    startY = location[1]
+                    moved = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downRawX
+                    val dy = event.rawY - downRawY
+                    if (abs(dx) > touchSlop || abs(dy) > touchSlop) {
+                        moved = true
+                    }
+                    if (moved) {
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val screenHeight = resources.displayMetrics.heightPixels
+                        val panelWidth = pView.width.takeIf { it > 0 } ?: params.width
+                        val panelHeight = pView.height.takeIf { it > 0 } ?: dp(300)
+                        params.x = (startX + dx).roundToInt().coerceIn(
+                            0,
+                            (screenWidth - panelWidth).coerceAtLeast(0),
+                        )
+                        params.y = (startY + dy).roundToInt().coerceIn(
+                            0,
+                            (screenHeight - panelHeight).coerceAtLeast(0),
+                        )
+                        runCatching { windowManager.updateViewLayout(pView, params) }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private fun buildUrlInput(): View {
@@ -720,8 +1013,13 @@ class OverlayService : Service() {
         } else {
             (bubbleParams.x + dp(64)).coerceAtMost(screenWidth - panelWidth - dp(8))
         }
-        val maxY = (screenHeight - dp(240)).coerceAtLeast(dp(24))
-        params.y = bubbleParams.y.coerceIn(dp(24), maxY)
+        val panelHeight = panelView?.height ?: 0
+        val maxY = if (panelHeight > 0) {
+            (screenHeight - panelHeight).coerceAtLeast(0)
+        } else {
+            (screenHeight - dp(240)).coerceAtLeast(0)
+        }
+        params.y = bubbleParams.y.coerceIn(0, maxY)
         panelView?.let { runCatching { windowManager.updateViewLayout(it, params) } }
     }
 
@@ -737,7 +1035,7 @@ class OverlayService : Service() {
 
     private fun clampBubbleToScreen() {
         val maxX = (resources.displayMetrics.widthPixels - dp(56)).coerceAtLeast(0)
-        val minY = dp(24).coerceAtMost(resources.displayMetrics.heightPixels)
+        val minY = 0
         val maxY = (resources.displayMetrics.heightPixels - dp(80)).coerceAtLeast(minY)
         bubbleParams.x = bubbleParams.x.coerceIn(0, maxX)
         bubbleParams.y = bubbleParams.y.coerceIn(minY, maxY)

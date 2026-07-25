@@ -1,6 +1,9 @@
 package com.jeremysu0818.igthreadsdownloader.overlay
 
+import android.view.MotionEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OverlayInteractionTest {
@@ -51,5 +54,15 @@ class OverlayInteractionTest {
                 hasManifest = true,
             ),
         )
+    }
+
+    @Test
+    fun `dropping over close target closes overlay`() {
+        assertTrue(shouldCloseAfterDrag(MotionEvent.ACTION_UP, isOverCloseTarget = true))
+    }
+
+    @Test
+    fun `canceled drag never closes overlay`() {
+        assertFalse(shouldCloseAfterDrag(MotionEvent.ACTION_CANCEL, isOverCloseTarget = true))
     }
 }
