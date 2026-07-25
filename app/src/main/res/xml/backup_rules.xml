@@ -6,4 +6,7 @@
     <exclude
         domain="sharedpref"
         path="overlay_preferences.xml" />
+    <exclude
+        domain="sharedpref"
+        path="app_settings.xml" />
 </full-backup-content>

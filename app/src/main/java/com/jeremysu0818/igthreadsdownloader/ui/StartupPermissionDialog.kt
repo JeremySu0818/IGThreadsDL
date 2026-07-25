@@ -16,6 +16,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.jeremysu0818.igthreadsdownloader.permissions.AppPermissionStatus
+import com.jeremysu0818.igthreadsdownloader.ui.theme.MatteCard
+import com.jeremysu0818.igthreadsdownloader.ui.theme.MatteTextPrimary
+import com.jeremysu0818.igthreadsdownloader.ui.theme.MatteTextSecondary
 
 @Composable
 fun StartupPermissionDialog(
@@ -59,6 +62,9 @@ fun StartupPermissionDialog(
             }
         },
         confirmButton = {},
+        containerColor = MatteCard,
+        titleContentColor = MatteTextPrimary,
+        textContentColor = MatteTextSecondary,
     )
 }
 
