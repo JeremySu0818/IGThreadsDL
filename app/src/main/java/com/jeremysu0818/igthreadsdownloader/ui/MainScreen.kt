@@ -38,6 +38,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
@@ -48,6 +49,8 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -58,10 +61,13 @@ import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import com.jeremysu0818.igthreadsdownloader.ui.theme.ThemeMode
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,12 +85,16 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import coil.compose.AsyncImage
 import com.jeremysu0818.igthreadsdownloader.domain.download.DownloadRecord
 import com.jeremysu0818.igthreadsdownloader.domain.download.DownloadStatus
@@ -92,6 +102,16 @@ import com.jeremysu0818.igthreadsdownloader.domain.model.MediaItem
 import com.jeremysu0818.igthreadsdownloader.domain.model.MediaItemType
 import com.jeremysu0818.igthreadsdownloader.domain.model.MediaManifest
 import com.jeremysu0818.igthreadsdownloader.permissions.AppPermissionStatus
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentAccent
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentBackground
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentBorder
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentSubtleSurface
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentSurface
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentSelection
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentSwitchOff
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentSwitchOn
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentTextMuted
+import com.jeremysu0818.igthreadsdownloader.ui.theme.ContentTextPrimary
 import com.jeremysu0818.igthreadsdownloader.ui.theme.MatteAmber
 import com.jeremysu0818.igthreadsdownloader.ui.theme.MatteBg
 import com.jeremysu0818.igthreadsdownloader.ui.theme.MatteCard
@@ -106,6 +126,8 @@ import com.jeremysu0818.igthreadsdownloader.ui.theme.MatteTextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.graphics.drawable.ColorDrawable
+import android.view.WindowManager
 
 private data class NavItem(
     val tab: MainTab,
@@ -118,6 +140,8 @@ private data class NavItem(
 fun MainScreen(
     viewModel: MainViewModel,
     permissionStatus: AppPermissionStatus,
+    autoLaunchEnabled: Boolean,
+    onAutoLaunchChange: (Boolean) -> Unit,
     onOverlaySettings: () -> Unit,
     onNotificationPermission: () -> Unit,
     onStartOverlay: () -> Unit,
@@ -148,6 +172,8 @@ fun MainScreen(
                 )
                 MainTab.QUEUE -> RecordsPage(
                     records = state.records.filter { it.isActive },
+                    title = "下載佇列",
+                    subtitle = "查看進行中的下載工作與即時進度。",
                     emptyTitle = "目前沒有下載中的工作",
                     emptyBody = "在「解析」貼上 IG 或 Threads 連結後，下載進度會顯示在這裡。",
                     onCancel = viewModel::cancel,
@@ -158,6 +184,8 @@ fun MainScreen(
                 )
                 MainTab.HISTORY -> RecordsPage(
                     records = state.records.filter { !it.isActive },
+                    title = "下載紀錄",
+                    subtitle = "管理已完成、失敗或取消的檔案。",
                     emptyTitle = "尚無歷史紀錄",
                     emptyBody = "已下載完成或取消的檔案紀錄會存放在這裡。",
                     onCancel = viewModel::cancel,
@@ -169,6 +197,8 @@ fun MainScreen(
                 MainTab.SETTINGS -> SettingsPage(
                     permissionStatus = permissionStatus,
                     currentThemeMode = state.themeMode,
+                    autoLaunchEnabled = autoLaunchEnabled,
+                    onAutoLaunchChange = onAutoLaunchChange,
                     onSelectThemeMode = viewModel::selectThemeMode,
                     onOverlaySettings = onOverlaySettings,
                     onNotificationPermission = onNotificationPermission,
@@ -349,39 +379,54 @@ private fun DownloadPage(
     onDownload: () -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ContentBackground),
         contentPadding = PaddingValues(
             start = 20.dp,
-            top = 8.dp,
+            top = 20.dp,
             end = 20.dp,
-            bottom = 100.dp,
+            bottom = 112.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
-            UrlInputCard(
-                value = state.input,
-                isResolving = state.isResolving,
-                onValueChange = onInputChange,
-                onPaste = onPasteClipboard,
-                onParse = onParse,
-            )
+            ContentFrame {
+                PageHeader(
+                    eyebrow = "IG + THREADS",
+                    title = "儲存公開貼文",
+                    subtitle = "貼上連結、確認媒體，再直接下載到裝置。",
+                )
+            }
+        }
+        item {
+            ContentFrame {
+                UrlInputCard(
+                    value = state.input,
+                    isResolving = state.isResolving,
+                    onValueChange = onInputChange,
+                    onPaste = onPasteClipboard,
+                    onParse = onParse,
+                )
+            }
         }
         state.errorMessage?.let { message ->
-            item { SimpleBanner(message, MatteRose) }
+            item { ContentFrame { SimpleBanner(message, MatteRose) } }
         }
         state.noticeMessage?.let { message ->
-            item { SimpleBanner(message, MatteEmerald) }
+            item { ContentFrame { SimpleBanner(message, MatteEmerald) } }
         }
         state.manifest?.let { manifest ->
             item {
-                ManifestCard(
-                    manifest = manifest,
-                    selectedIds = state.selectedIds,
-                    onToggleItem = onToggleItem,
-                    onSelectAll = onSelectAll,
-                    onDownload = onDownload,
-                )
+                ContentFrame {
+                    ManifestCard(
+                        manifest = manifest,
+                        selectedIds = state.selectedIds,
+                        onToggleItem = onToggleItem,
+                        onSelectAll = onSelectAll,
+                        onDownload = onDownload,
+                    )
+                }
             }
         }
     }
@@ -395,54 +440,41 @@ private fun QuickSettingsCard(
     onStartOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
 ) {
-    MatteCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Tune,
-                contentDescription = null,
-                tint = MatteTextSecondary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "快速設定",
-                color = MatteTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            StatusChip(
-                label = "懸浮視窗",
+    Column {
+        SectionTitle(
+            title = "快速設定",
+            subtitle = "管理懸浮工具與下載通知。",
+        )
+        Spacer(Modifier.height(10.dp))
+        SectionSurface {
+            SettingsRow(
+                icon = Icons.Default.Tune,
+                title = "懸浮視窗",
+                subtitle = if (status.overlay) "權限已開啟" else "需要系統顯示權限",
                 enabled = status.overlay,
-                modifier = Modifier.weight(1f),
-                onClick = onOverlaySettings
+                onClick = onOverlaySettings,
             )
-            StatusChip(
-                label = "通知權限",
+            ContentDivider()
+            SettingsRow(
+                icon = Icons.Default.Info,
+                title = "下載通知",
+                subtitle = if (status.notifications) "通知已允許" else "完成與錯誤提醒尚未開啟",
                 enabled = status.notifications,
-                modifier = Modifier.weight(1f),
-                onClick = onNotificationPermission
+                onClick = onNotificationPermission,
             )
-            StatusChip(
-                label = "儲存目錄",
+            ContentDivider()
+            SettingsRow(
+                icon = Icons.Default.Folder,
+                title = "儲存目錄",
+                subtitle = "系統 Downloads 與媒體庫",
                 enabled = true,
-                modifier = Modifier.weight(1f),
-                onClick = {}
             )
         }
-
         Spacer(Modifier.height(12.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             HighRadiusButton(
                 text = "啟動懸浮工具",
                 icon = Icons.Default.PlayArrow,
@@ -466,46 +498,38 @@ private fun ThemeModeCard(
     currentMode: ThemeMode,
     onSelectMode: (ThemeMode) -> Unit,
 ) {
-    MatteCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.Palette,
-                contentDescription = null,
-                tint = MatteTextSecondary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "顏色模式",
-                color = MatteTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            ThemeOptionChip(
-                label = "系統預設",
-                selected = currentMode == ThemeMode.SYSTEM,
-                modifier = Modifier.weight(1f),
-                onClick = { onSelectMode(ThemeMode.SYSTEM) }
-            )
-            ThemeOptionChip(
-                label = "淺色模式",
-                selected = currentMode == ThemeMode.LIGHT,
-                modifier = Modifier.weight(1f),
-                onClick = { onSelectMode(ThemeMode.LIGHT) }
-            )
-            ThemeOptionChip(
-                label = "深色模式",
-                selected = currentMode == ThemeMode.DARK,
-                modifier = Modifier.weight(1f),
-                onClick = { onSelectMode(ThemeMode.DARK) }
-            )
+    Column {
+        SectionTitle(
+            title = "外觀",
+            subtitle = "選擇最適合目前環境的顯示模式。",
+        )
+        Spacer(Modifier.height(10.dp))
+        SectionSurface {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                ThemeOptionChip(
+                    label = "跟隨系統",
+                    selected = currentMode == ThemeMode.SYSTEM,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onSelectMode(ThemeMode.SYSTEM) },
+                )
+                ThemeOptionChip(
+                    label = "淺色",
+                    selected = currentMode == ThemeMode.LIGHT,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onSelectMode(ThemeMode.LIGHT) },
+                )
+                ThemeOptionChip(
+                    label = "深色",
+                    selected = currentMode == ThemeMode.DARK,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onSelectMode(ThemeMode.DARK) },
+                )
+            }
         }
     }
 }
@@ -520,21 +544,17 @@ private fun ThemeOptionChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) MatteCardHover else MatteBg)
-            .border(
-                1.dp,
-                if (selected) MattePrimary else MatteCardBorder,
-                RoundedCornerShape(16.dp)
-            )
+            .background(if (selected) ContentSubtleSurface else Color.Transparent)
             .clickable { onClick() }
             .padding(vertical = 12.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
-            color = if (selected) MattePrimary else MatteTextSecondary,
+            color = if (selected) ContentTextPrimary else ContentTextMuted,
             fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1,
         )
     }
 }
@@ -543,107 +563,396 @@ private fun ThemeOptionChip(
 private fun SettingsPage(
     permissionStatus: AppPermissionStatus,
     currentThemeMode: ThemeMode,
+    autoLaunchEnabled: Boolean,
+    onAutoLaunchChange: (Boolean) -> Unit,
     onSelectThemeMode: (ThemeMode) -> Unit,
     onOverlaySettings: () -> Unit,
     onNotificationPermission: () -> Unit,
     onStartOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            top = 8.dp,
-            end = 20.dp,
-            bottom = 100.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    var showColorModeDialog by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ContentBackground),
     ) {
-        item {
-            ThemeModeCard(
-                currentMode = currentThemeMode,
-                onSelectMode = onSelectThemeMode,
-            )
-        }
-        item {
-            QuickSettingsCard(
-                status = permissionStatus,
-                onOverlaySettings = onOverlaySettings,
-                onNotificationPermission = onNotificationPermission,
-                onStartOverlay = onStartOverlay,
-                onStopOverlay = onStopOverlay,
-            )
-        }
-        item {
-            MatteCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = null,
-                        tint = MatteTextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 14.dp,
+                top = 8.dp,
+                end = 14.dp,
+                bottom = 112.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(68.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text(
-                        "儲存設定",
-                        color = MatteTextPrimary,
-                        fontSize = 14.sp,
+                        text = "Settings",
+                        color = ContentTextPrimary,
+                        fontSize = 22.sp,
+                        lineHeight = 28.sp,
                         fontWeight = FontWeight.Bold,
                     )
                 }
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MatteBg)
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "預設儲存位置",
-                            color = MatteTextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Text(
-                            "系統標準 Downloads / 媒體庫",
-                            color = MatteTextMuted,
-                            fontSize = 11.sp,
-                        )
-                    }
-                    SimpleBadge("自動管理", MatteEmerald)
+            }
+            item {
+                AiSettingsGroup {
+                    AiSettingsRow(
+                        icon = Icons.Default.Palette,
+                        title = "Color mode",
+                        subtitle = currentThemeMode.displayName(),
+                        onClick = { showColorModeDialog = true },
+                    )
+                }
+            }
+            item {
+                AiSettingsGroup {
+                    AutoLaunchSettingsRow(
+                        checked = autoLaunchEnabled,
+                        onCheckedChange = onAutoLaunchChange,
+                    )
+                }
+            }
+            item {
+                AiSettingsGroup {
+                    AiSettingsRow(
+                        icon = Icons.Default.Tune,
+                        title = "懸浮視窗",
+                        subtitle = if (permissionStatus.overlay) "已允許" else "需要權限",
+                        trailingText = if (permissionStatus.overlay) "On" else "Off",
+                        onClick = onOverlaySettings,
+                    )
+                    AiSettingsDivider()
+                    AiSettingsRow(
+                        icon = Icons.Default.Info,
+                        title = "下載通知",
+                        subtitle = if (permissionStatus.notifications) "已允許" else "尚未開啟",
+                        trailingText = if (permissionStatus.notifications) "On" else "Off",
+                        onClick = onNotificationPermission,
+                    )
+                    AiSettingsDivider()
+                    AiSettingsRow(
+                        icon = Icons.Default.Folder,
+                        title = "儲存位置",
+                        subtitle = "Downloads / 媒體庫",
+                        trailingText = "自動",
+                    )
+                }
+            }
+            item {
+                AiSettingsGroup {
+                    AiSettingsRow(
+                        icon = Icons.Default.PlayArrow,
+                        title = "啟動懸浮工具",
+                        subtitle = if (permissionStatus.overlayReady) "可立即啟動" else "請先完成權限設定",
+                        enabled = permissionStatus.overlayReady,
+                        onClick = onStartOverlay,
+                    )
+                    AiSettingsDivider()
+                    AiSettingsRow(
+                        icon = Icons.Default.Close,
+                        title = "關閉懸浮工具",
+                        subtitle = "停止目前顯示的懸浮視窗",
+                        onClick = onStopOverlay,
+                    )
+                }
+            }
+            item {
+                AiSettingsGroup {
+                    AiSettingsRow(
+                        icon = Icons.Default.Info,
+                        title = "IG & Threads 下載器",
+                        subtitle = "儲存公開圖片與影片",
+                        trailingText = "1.0",
+                    )
                 }
             }
         }
-        item {
-            MatteCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MatteTextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "關於此應用程式",
-                        color = MatteTextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
+    }
+
+    if (showColorModeDialog) {
+        ColorModeDialog(
+            selectedMode = currentThemeMode,
+            onSelectMode = {
+                onSelectThemeMode(it)
+                showColorModeDialog = false
+            },
+            onDismiss = { showColorModeDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun AutoLaunchSettingsRow(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(82.dp)
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Bolt,
+            contentDescription = null,
+            tint = ContentTextPrimary,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "自動啟動懸浮工具",
+                color = ContentTextPrimary,
+                fontSize = 17.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "開啟 Instagram 或 Threads 時自動顯示",
+                color = ContentTextMuted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        ReferenceSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+        )
+    }
+}
+
+@Composable
+private fun ReferenceSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .width(52.dp)
+            .height(32.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (checked) ContentSwitchOn else ContentSwitchOff)
+            .clickable { onCheckedChange(!checked) }
+            .padding(3.dp),
+        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+        )
+    }
+}
+
+@Composable
+private fun AiSettingsGroup(
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 680.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(ContentSurface),
+        content = content,
+    )
+}
+
+@Composable
+private fun AiSettingsDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(ContentBackground),
+    )
+}
+
+@Composable
+private fun AiSettingsRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    trailingText: String? = null,
+    enabled: Boolean = true,
+    onClick: (() -> Unit)? = null,
+) {
+    var modifier = Modifier
+        .fillMaxWidth()
+        .height(if (subtitle == null) 68.dp else 76.dp)
+    if (onClick != null) {
+        modifier = modifier.clickable(enabled = enabled, onClick = onClick)
+    }
+
+    Row(
+        modifier = modifier.padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (enabled) ContentTextPrimary else ContentTextMuted.copy(alpha = 0.55f),
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = if (enabled) ContentTextPrimary else ContentTextMuted.copy(alpha = 0.55f),
+                fontSize = 17.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (subtitle != null) {
                 Text(
-                    "IG & Threads 下載器專為方便儲存 Instagram 及 Threads 之公開圖片與影片設計。",
-                    color = MatteTextMuted,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
+                    text = subtitle,
+                    color = ContentTextMuted,
+                    fontSize = 14.sp,
+                    lineHeight = 19.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (trailingText != null) {
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = trailingText,
+                color = ContentTextMuted,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColorModeDialog(
+    selectedMode: ThemeMode,
+    onSelectMode: (ThemeMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val dialogView = LocalView.current
+        SideEffect {
+            val window = (dialogView.parent as DialogWindowProvider).window
+            window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.setDimAmount(0.60f)
+        }
+
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.79f)
+                    .widthIn(max = 340.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(ContentBackground)
+                    .padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 12.dp),
+            ) {
+                Text(
+                    text = "Color mode",
+                    color = ContentTextPrimary,
+                    fontSize = 20.sp,
+                    lineHeight = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(8.dp))
+                ColorModeOption(
+                    icon = Icons.Default.BrightnessAuto,
+                    label = "System",
+                    selected = selectedMode == ThemeMode.SYSTEM,
+                    onClick = { onSelectMode(ThemeMode.SYSTEM) },
+                )
+                ColorModeOption(
+                    icon = Icons.Default.LightMode,
+                    label = "Light",
+                    selected = selectedMode == ThemeMode.LIGHT,
+                    onClick = { onSelectMode(ThemeMode.LIGHT) },
+                )
+                ColorModeOption(
+                    icon = Icons.Default.DarkMode,
+                    label = "Dark",
+                    selected = selectedMode == ThemeMode.DARK,
+                    onClick = { onSelectMode(ThemeMode.DARK) },
                 )
             }
         }
     }
+}
+
+@Composable
+private fun ColorModeOption(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val color = if (selected) ContentSelection else ContentTextPrimary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(25.dp),
+        )
+        Spacer(Modifier.width(20.dp))
+        Text(
+            text = label,
+            color = color,
+            fontSize = 18.sp,
+            lineHeight = 24.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+        )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Selected",
+                tint = ContentSelection,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
+}
+
+private fun ThemeMode.displayName(): String = when (this) {
+    ThemeMode.SYSTEM -> "System"
+    ThemeMode.LIGHT -> "Light"
+    ThemeMode.DARK -> "Dark"
 }
 
 @Composable
@@ -653,40 +962,29 @@ private fun StatusChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    Box(
+    Row(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MatteCardHover)
-            .border(
-                1.dp,
-                if (enabled) MatteEmerald.copy(alpha = 0.4f) else MatteCardBorder,
-                RoundedCornerShape(16.dp)
-            )
-            .clickable { onClick() }
-            .padding(vertical = 10.dp, horizontal = 8.dp),
-        contentAlignment = Alignment.Center,
+            .clip(CircleShape)
+            .background(ContentSubtleSurface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(if (enabled) MatteEmerald else MatteAmber)
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                label,
-                color = MatteTextPrimary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                if (enabled) "已開啟" else "前往設定",
-                color = if (enabled) MatteEmerald else MatteAmber,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(if (enabled) MatteEmerald else MatteAmber),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            label,
+            color = ContentTextPrimary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+        )
     }
 }
 
@@ -698,79 +996,85 @@ private fun UrlInputCard(
     onPaste: () -> Unit,
     onParse: () -> Unit,
 ) {
-    MatteCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.Link,
-                contentDescription = null,
-                tint = MatteTextSecondary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "貼上貼文連結",
-                color = MatteTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-
+    Column {
+        SectionTitle(
+            title = "貼文連結",
+            subtitle = "支援 Instagram 貼文、Reels 與 Threads 公開貼文。",
+        )
         Spacer(Modifier.height(10.dp))
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MatteBg)
-                .border(1.dp, MatteCardBorder, RoundedCornerShape(16.dp))
-                .padding(13.dp),
+                .clip(RoundedCornerShape(22.dp))
+                .background(ContentSurface)
+                .border(1.dp, ContentBorder, RoundedCornerShape(22.dp))
+                .padding(horizontal = 18.dp, vertical = 16.dp),
         ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = TextStyle(
-                    color = MatteTextPrimary,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                ),
-                minLines = 2,
-                maxLines = 4,
-                cursorBrush = SolidColor(MattePrimary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { onParse() }),
-                decorationBox = { innerTextField ->
-                    if (value.isBlank()) {
-                        Text(
-                            "貼上 Instagram (/p, /reel) 或 Threads 連結...",
-                            color = MatteTextMuted,
-                            fontSize = 12.sp,
-                            lineHeight = 18.sp,
-                        )
-                    }
-                    innerTextField()
-                },
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HighRadiusButton(
-                text = "貼上剪貼簿",
-                icon = Icons.Default.ContentPaste,
-                primary = false,
-                modifier = Modifier.weight(1f),
-                onClick = onPaste,
-            )
-            HighRadiusButton(
-                text = if (isResolving) "解析中..." else "解析連結",
-                icon = Icons.AutoMirrored.Filled.ArrowForward,
-                primary = true,
-                enabled = !isResolving,
-                modifier = Modifier.weight(1f),
-                onClick = onParse,
-            )
+            Column {
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = null,
+                        tint = ContentAccent,
+                        modifier = Modifier
+                            .padding(top = 1.dp)
+                            .size(18.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(64.dp),
+                        textStyle = TextStyle(
+                            color = ContentTextPrimary,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                        ),
+                        minLines = 2,
+                        maxLines = 3,
+                        cursorBrush = SolidColor(ContentAccent),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { onParse() }),
+                        decorationBox = { innerTextField ->
+                            Box {
+                                if (value.isBlank()) {
+                                    Text(
+                                        "https://www.instagram.com/p/…",
+                                        color = ContentTextMuted,
+                                        fontSize = 14.sp,
+                                        lineHeight = 20.sp,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
+                    )
+                }
+                ContentDivider()
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    HighRadiusButton(
+                        text = "貼上",
+                        icon = Icons.Default.ContentPaste,
+                        primary = false,
+                        modifier = Modifier.weight(1f),
+                        onClick = onPaste,
+                    )
+                    HighRadiusButton(
+                        text = if (isResolving) "解析中…" else "解析連結",
+                        icon = Icons.AutoMirrored.Filled.ArrowForward,
+                        primary = true,
+                        enabled = !isResolving,
+                        modifier = Modifier.weight(1f),
+                        onClick = onParse,
+                    )
+                }
+            }
         }
     }
 }
@@ -783,24 +1087,12 @@ private fun ManifestCard(
     onSelectAll: (Boolean) -> Unit,
     onDownload: () -> Unit,
 ) {
-    MatteCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "${manifest.platform.value.uppercase()}  ·  ${manifest.author?.let { "@$it" } ?: "公開來源"}",
-                    color = MatteTextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            Text(
-                "${manifest.items.size} 個項目",
-                color = MattePrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
+    Column {
+        SectionTitle(
+            title = "媒體預覽",
+            subtitle = "${manifest.platform.value.uppercase()} · ${manifest.author?.let { "@$it" } ?: "公開來源"}",
+            trailing = "${manifest.items.size} 個項目",
+        )
         manifest.thumbnailUrl?.let {
             Spacer(Modifier.height(12.dp))
             AsyncImage(
@@ -809,19 +1101,19 @@ private fun ManifestCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1.78f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MatteBg),
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(ContentSubtleSurface),
                 contentScale = ContentScale.Crop,
             )
         }
 
         manifest.caption?.let {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 it,
-                color = MatteTextSecondary,
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
+                color = ContentTextMuted,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -832,35 +1124,40 @@ private fun ManifestCard(
             SimpleBanner(it, MatteAmber)
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(18.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "檔案預估大小：${estimatedSize(manifest.items)}",
-                color = MatteTextMuted,
-                fontSize = 11.sp,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                if (selectedIds.size == manifest.items.size) "取消全選" else "全選",
-                color = MattePrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable {
-                    onSelectAll(selectedIds.size != manifest.items.size)
-                },
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "選擇要下載的媒體",
+                    color = ContentTextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "預估大小 ${estimatedSize(manifest.items)}",
+                    color = ContentTextMuted,
+                    fontSize = 11.sp,
+                )
+            }
+            HighRadiusButton(
+                text = if (selectedIds.size == manifest.items.size) "取消全選" else "全選",
+                primary = false,
+                onClick = { onSelectAll(selectedIds.size != manifest.items.size) },
             )
         }
 
-        Spacer(Modifier.height(8.dp))
-
-        manifest.items.forEachIndexed { index, item ->
-            MediaItemRow(
-                item = item,
-                index = index,
-                selected = item.id in selectedIds,
-                onToggle = { onToggleItem(item.id) },
-            )
+        Spacer(Modifier.height(10.dp))
+        SectionSurface {
+            manifest.items.forEachIndexed { index, item ->
+                MediaItemRow(
+                    item = item,
+                    index = index,
+                    selected = item.id in selectedIds,
+                    onToggle = { onToggleItem(item.id) },
+                )
+                if (index != manifest.items.lastIndex) ContentDivider()
+            }
         }
 
         Spacer(Modifier.height(14.dp))
@@ -886,11 +1183,9 @@ private fun MediaItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) MatteCardHover else Color.Transparent)
+            .background(if (selected) ContentSubtleSurface else Color.Transparent)
             .clickable(onClick = onToggle)
-            .padding(vertical = 10.dp, horizontal = 10.dp),
+            .padding(vertical = 13.dp, horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SimpleCheckCircle(selected)
@@ -900,20 +1195,20 @@ private fun MediaItemRow(
                 Icon(
                     imageVector = if (item.type == MediaItemType.VIDEO) Icons.Default.VideoLibrary else Icons.Default.Image,
                     contentDescription = null,
-                    tint = MatteTextSecondary,
-                    modifier = Modifier.size(14.dp)
+                    tint = ContentTextMuted,
+                    modifier = Modifier.size(15.dp),
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "#${index + 1} ${if (item.type == MediaItemType.VIDEO) "影片" else "圖片"}",
-                    color = MatteTextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    color = ContentTextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
                 )
             }
             Text(
                 "${item.mimeType ?: "檔案"}  ·  ${formatBytes(item.contentLength)}",
-                color = MatteTextMuted,
+                color = ContentTextMuted,
                 fontSize = 11.sp,
             )
         }
@@ -923,6 +1218,8 @@ private fun MediaItemRow(
 @Composable
 private fun RecordsPage(
     records: List<DownloadRecord>,
+    title: String,
+    subtitle: String,
     emptyTitle: String,
     emptyBody: String,
     onCancel: (Long) -> Unit,
@@ -931,63 +1228,43 @@ private fun RecordsPage(
     onShare: (DownloadRecord) -> Unit,
     onDelete: (Long) -> Unit,
 ) {
-    if (records.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(36.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MatteCard)
-                        .border(1.dp, MatteCardBorder, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = null,
-                        tint = MatteTextMuted,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    emptyTitle,
-                    color = MatteTextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    emptyBody,
-                    color = MatteTextMuted,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    modifier = Modifier.widthIn(max = 280.dp),
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ContentBackground),
+        contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 112.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item {
+            ContentFrame {
+                PageHeader(
+                    eyebrow = if (records.isEmpty()) "LIBRARY" else "${records.size} ITEMS",
+                    title = title,
+                    subtitle = subtitle,
                 )
             }
         }
-        return
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+        if (records.isEmpty()) {
+            item {
+                ContentFrame {
+                    EmptyRecordsState(
+                        title = emptyTitle,
+                        body = emptyBody,
+                    )
+                }
+            }
+        }
         items(records, key = { it.managerId }) { record ->
-            RecordCard(
-                record = record,
-                onCancel = { onCancel(record.managerId) },
-                onRetry = { onRetry(record.managerId) },
-                onOpen = { onOpen(record) },
-                onShare = { onShare(record) },
-                onDelete = { onDelete(record.managerId) },
-            )
+            ContentFrame {
+                RecordCard(
+                    record = record,
+                    onCancel = { onCancel(record.managerId) },
+                    onRetry = { onRetry(record.managerId) },
+                    onOpen = { onOpen(record) },
+                    onShare = { onShare(record) },
+                    onDelete = { onDelete(record.managerId) },
+                )
+            }
         }
     }
 }
@@ -1001,12 +1278,13 @@ private fun RecordCard(
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    MatteCard {
+    SectionSurface {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 15.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(statusColor(record.status).copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1021,15 +1299,15 @@ private fun RecordCard(
             Column(Modifier.weight(1f)) {
                 Text(
                     record.filename,
-                    color = MatteTextPrimary,
-                    fontSize = 13.sp,
+                    color = ContentTextPrimary,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     "${record.platform.value}  ·  ${formatDate(record.updatedAt)}",
-                    color = MatteTextMuted,
+                    color = ContentTextMuted,
                     fontSize = 11.sp,
                 )
             }
@@ -1044,14 +1322,14 @@ private fun RecordCard(
                     .fillMaxWidth()
                     .height(4.dp)
                     .clip(CircleShape)
-                    .background(MatteBg),
+                    .background(ContentSubtleSurface),
             ) {
                 Box(
                     Modifier
                         .fillMaxWidth(progress)
                         .fillMaxHeight()
                         .clip(CircleShape)
-                        .background(MattePrimary),
+                        .background(ContentAccent),
                 )
             }
         }
@@ -1064,7 +1342,7 @@ private fun RecordCard(
                 record.totalBytes?.let { append(" / ${formatBytes(it)}") }
                 record.statusMessage?.let { append("  ·  $it") }
             },
-            color = if (record.status == DownloadStatus.FAILED) MatteRose else MatteTextMuted,
+            color = if (record.status == DownloadStatus.FAILED) MatteRose else ContentTextMuted,
             fontSize = 11.sp,
             lineHeight = 16.sp,
         )
@@ -1088,6 +1366,234 @@ private fun RecordCard(
                 }
             }
         }
+        }
+    }
+}
+
+@Composable
+private fun ContentFrame(
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 680.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun PageHeader(
+    eyebrow: String,
+    title: String,
+    subtitle: String,
+) {
+    Column {
+        Text(
+            text = eyebrow,
+            color = ContentAccent,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.4.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = title,
+            color = ContentTextPrimary,
+            fontSize = 30.sp,
+            lineHeight = 36.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.5f).sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = subtitle,
+            color = ContentTextMuted,
+            fontSize = 14.sp,
+            lineHeight = 21.sp,
+        )
+    }
+}
+
+@Composable
+private fun SectionTitle(
+    title: String,
+    subtitle: String? = null,
+    trailing: String? = null,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = ContentTextPrimary,
+                fontSize = 17.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            if (subtitle != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    color = ContentTextMuted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                )
+            }
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = trailing,
+                color = ContentAccent,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionSurface(
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(ContentSurface)
+            .border(1.dp, ContentBorder, RoundedCornerShape(22.dp)),
+        content = content,
+    )
+}
+
+@Composable
+private fun ContentDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp)
+            .height(1.dp)
+            .background(ContentBorder.copy(alpha = 0.72f)),
+    )
+}
+
+@Composable
+private fun SettingsRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    enabled: Boolean,
+    trailingText: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    var rowModifier = Modifier.fillMaxWidth()
+    if (onClick != null) rowModifier = rowModifier.clickable(onClick = onClick)
+
+    Row(
+        modifier = rowModifier.padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(ContentSubtleSurface),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = ContentTextPrimary,
+                modifier = Modifier.size(19.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = ContentTextPrimary,
+                fontSize = 14.sp,
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = subtitle,
+                color = ContentTextMuted,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        if (trailingText != null) {
+            Text(
+                text = trailingText,
+                color = ContentTextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (enabled) MatteEmerald else MatteAmber),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyRecordsState(
+    title: String,
+    body: String,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 76.dp, bottom = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(ContentSubtleSurface),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Folder,
+                contentDescription = null,
+                tint = ContentTextMuted,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = title,
+            color = ContentTextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = body,
+            color = ContentTextMuted,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            modifier = Modifier.widthIn(max = 300.dp),
+        )
     }
 }
 
@@ -1122,9 +1628,9 @@ private fun HighRadiusButton(
             .clip(RoundedCornerShape(24.dp))
             .background(
                 when {
-                    !enabled -> MatteCardHover
-                    primary -> MattePrimary
-                    else -> MatteCardHover
+                    !enabled -> ContentSubtleSurface
+                    primary -> ContentAccent
+                    else -> ContentSubtleSurface
                 },
             )
             .clickable(enabled = enabled, onClick = onClick)
@@ -1136,14 +1642,14 @@ private fun HighRadiusButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (enabled) MatteTextPrimary else MatteTextMuted,
+                    tint = if (enabled) ContentTextPrimary else ContentTextMuted,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(6.dp))
             }
             Text(
                 text,
-                color = if (enabled) MatteTextPrimary else MatteTextMuted,
+                color = if (enabled) ContentTextPrimary else ContentTextMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -1197,10 +1703,10 @@ private fun SimpleCheckCircle(selected: Boolean) {
         modifier = Modifier
             .size(22.dp)
             .clip(CircleShape)
-            .background(if (selected) MattePrimary else Color.Transparent)
+            .background(if (selected) ContentAccent else Color.Transparent)
             .border(
                 1.5.dp,
-                if (selected) MattePrimary else MatteTextMuted,
+                if (selected) ContentAccent else ContentTextMuted,
                 CircleShape
             ),
         contentAlignment = Alignment.Center,
@@ -1209,7 +1715,7 @@ private fun SimpleCheckCircle(selected: Boolean) {
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = null,
-                tint = MatteTextPrimary,
+                tint = ContentTextPrimary,
                 modifier = Modifier.size(13.dp)
             )
         }
@@ -1240,6 +1746,7 @@ private fun SimpleBanner(text: String, color: Color) {
             fontSize = 12.sp,
             lineHeight = 17.sp,
             fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
         )
     }
 }

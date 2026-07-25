@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
             notifications = false,
         ),
     )
+    private var autoLaunchEnabled by mutableStateOf(false)
     private var skipClipboardOnce = false
     private var readClipboardWhenFocused = false
 
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
+        autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
         setContent {
             val state by viewModel.state.collectAsState()
             val isDark = when (state.themeMode) {
@@ -67,6 +69,17 @@ class MainActivity : ComponentActivity() {
                 MainScreen(
                     viewModel = viewModel,
                     permissionStatus = permissionStatus,
+                    autoLaunchEnabled = autoLaunchEnabled,
+                    onAutoLaunchChange = { enabled ->
+                        PermissionStatus.setAutoLaunchEnabled(this, enabled)
+                        autoLaunchEnabled = enabled
+                        if (
+                            enabled &&
+                            !PermissionStatus.isAutoLaunchDetectorEnabled(this)
+                        ) {
+                            startActivity(PermissionStatus.accessibilitySettingsIntent())
+                        }
+                    },
                     onOverlaySettings = {
                         startActivity(PermissionStatus.overlaySettingsIntent(this))
                     },
@@ -99,6 +112,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshPermissionStatus()
+        autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
         if (permissionStatus.overlayReady && PermissionStatus.shouldRunOverlay(this)) {
             PermissionStatus.startOverlay(this)
         }

@@ -30,6 +30,16 @@ data class AppColors(
     val textPrimary: Color,
     val textSecondary: Color,
     val textMuted: Color,
+    val contentBackground: Color,
+    val contentSurface: Color,
+    val contentSubtleSurface: Color,
+    val contentBorder: Color,
+    val contentAccent: Color,
+    val contentSelection: Color,
+    val contentSwitchOn: Color,
+    val contentSwitchOff: Color,
+    val contentTextPrimary: Color,
+    val contentTextMuted: Color,
     val isDark: Boolean,
 )
 
@@ -47,6 +57,16 @@ val DarkColors = AppColors(
     textPrimary = DarkTextPrimary,
     textSecondary = DarkTextSecondary,
     textMuted = DarkTextMuted,
+    contentBackground = ReferenceDarkBackground,
+    contentSurface = ReferenceDarkSurface,
+    contentSubtleSurface = ReferenceDarkSubtleSurface,
+    contentBorder = ReferenceDarkBorder,
+    contentAccent = ReferenceAccent,
+    contentSelection = ReferenceDarkSelection,
+    contentSwitchOn = ReferenceDarkSwitchOn,
+    contentSwitchOff = ReferenceDarkSwitchOff,
+    contentTextPrimary = ReferenceDarkTextPrimary,
+    contentTextMuted = ReferenceDarkTextMuted,
     isDark = true,
 )
 
@@ -64,6 +84,16 @@ val LightColors = AppColors(
     textPrimary = LightTextPrimary,
     textSecondary = LightTextSecondary,
     textMuted = LightTextMuted,
+    contentBackground = ReferenceLightBackground,
+    contentSurface = ReferenceLightSurface,
+    contentSubtleSurface = ReferenceLightSubtleSurface,
+    contentBorder = ReferenceLightBorder,
+    contentAccent = ReferenceAccent,
+    contentSelection = ReferenceLightSelection,
+    contentSwitchOn = ReferenceLightSwitchOn,
+    contentSwitchOff = ReferenceLightSwitchOff,
+    contentTextPrimary = ReferenceLightTextPrimary,
+    contentTextMuted = ReferenceLightTextMuted,
     isDark = false,
 )
 
@@ -133,6 +163,56 @@ val MatteTextMuted: Color
     @Composable
     @ReadOnlyComposable
     get() = LocalAppColors.current.textMuted
+
+val ContentBackground: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentBackground
+
+val ContentSurface: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentSurface
+
+val ContentSubtleSurface: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentSubtleSurface
+
+val ContentBorder: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentBorder
+
+val ContentAccent: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentAccent
+
+val ContentSelection: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentSelection
+
+val ContentSwitchOn: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentSwitchOn
+
+val ContentSwitchOff: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentSwitchOff
+
+val ContentTextPrimary: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentTextPrimary
+
+val ContentTextMuted: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalAppColors.current.contentTextMuted
 
 @Composable
 fun IGThreadsDownloaderTheme(

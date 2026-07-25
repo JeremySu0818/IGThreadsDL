@@ -1,6 +1,7 @@
 package com.jeremysu0818.igthreadsdownloader.permissions
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,6 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import com.jeremysu0818.igthreadsdownloader.accessibility.AppLaunchAccessibilityService
 import com.jeremysu0818.igthreadsdownloader.overlay.OverlayService
 
 data class AppPermissionStatus(
@@ -35,6 +37,36 @@ object PermissionStatus {
     fun notificationSettingsIntent(context: Context): Intent =
         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
             .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+
+    fun accessibilitySettingsIntent(): Intent =
+        Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+
+    fun isAutoLaunchEnabled(context: Context): Boolean =
+        context.getSharedPreferences(OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
+            .getBoolean(KEY_AUTO_LAUNCH_TARGET_APPS, false)
+
+    fun setAutoLaunchEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
+            .edit {
+                putBoolean(KEY_AUTO_LAUNCH_TARGET_APPS, enabled)
+            }
+    }
+
+    fun isAutoLaunchDetectorEnabled(context: Context): Boolean {
+        val expected = ComponentName(
+            context,
+            AppLaunchAccessibilityService::class.java,
+        )
+        val enabledServices = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ).orEmpty()
+
+        return enabledServices
+            .split(':')
+            .mapNotNull(ComponentName::unflattenFromString)
+            .any { it == expected }
+    }
 
     fun startOverlay(context: Context): Boolean {
         if (!Settings.canDrawOverlays(context)) return false
@@ -72,4 +104,5 @@ object PermissionStatus {
 
     const val OVERLAY_PREFERENCES = "overlay_preferences"
     const val KEY_OVERLAY_ENABLED = "overlay_enabled"
+    const val KEY_AUTO_LAUNCH_TARGET_APPS = "auto_launch_target_apps"
 }
