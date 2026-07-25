@@ -9,18 +9,25 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.provider.Settings
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -61,6 +68,10 @@ class OverlayService : Service() {
     private var panelControls = false
     private var panelHint: String? = null
     private var clipboardReadJob: Job? = null
+    private var bubbleOnRight = true
+    private var lastOutsideDismissAt = 0L
+    private var panelUrlText = ""
+    private var panelUrlInput: EditText? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -101,6 +112,21 @@ class OverlayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!::windowManager.isInitialized || !::bubbleParams.isInitialized) return
+
+        bubbleParams.x = if (bubbleOnRight) {
+            resources.displayMetrics.widthPixels - dp(64)
+        } else {
+            dp(8)
+        }
+        clampBubbleToScreen()
+        runCatching { windowManager.updateViewLayout(bubbleView, bubbleParams) }
+        saveBubblePosition()
+        updatePanelPosition()
+    }
+
     override fun onDestroy() {
         getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
             .edit {
@@ -127,6 +153,8 @@ class OverlayService : Service() {
             contentDescription = "IGThreadsDownloader 懸浮下載工具"
             setPadding(0, 0, 0, dp(2))
         }
+        val savedX = preferences.getInt(KEY_X, resources.displayMetrics.widthPixels - dp(68))
+        bubbleOnRight = preferences.getBoolean(KEY_EDGE_RIGHT, savedX > dp(64))
         bubbleParams = WindowManager.LayoutParams(
             dp(56),
             dp(56),
@@ -136,9 +164,14 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = preferences.getInt(KEY_X, resources.displayMetrics.widthPixels - dp(68))
+            x = if (bubbleOnRight) {
+                resources.displayMetrics.widthPixels - dp(64)
+            } else {
+                dp(8)
+            }
             y = preferences.getInt(KEY_Y, resources.displayMetrics.heightPixels / 3)
         }
+        clampBubbleToScreen()
         attachBubbleGestures()
         runCatching { windowManager.addView(bubbleView, bubbleParams) }
             .onFailure { stopSelf() }
@@ -155,6 +188,12 @@ class OverlayService : Service() {
         var longPressJob: Job? = null
 
         bubbleView.setOnClickListener { beginBubbleAction() }
+        bubbleView.setOnLongClickListener {
+            panelControls = true
+            panelHint = null
+            showPanel()
+            true
+        }
         bubbleView.setOnTouchListener { view, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -168,10 +207,7 @@ class OverlayService : Service() {
                     longPressJob = serviceScope.launch {
                         kotlinx.coroutines.delay(ViewConfiguration.getLongPressTimeout().toLong())
                         if (!moved) {
-                            longPressed = true
-                            panelControls = true
-                            panelHint = null
-                            showPanel()
+                            longPressed = bubbleView.performLongClick()
                         }
                     }
                     true
@@ -215,6 +251,24 @@ class OverlayService : Service() {
 
     private fun beginBubbleAction() {
         clipboardReadJob?.cancel()
+        if (
+            SystemClock.elapsedRealtime() - lastOutsideDismissAt <=
+            OUTSIDE_DISMISS_DEDUPLICATION_MS
+        ) {
+            lastOutsideDismissAt = 0L
+            return
+        }
+        if (panelView != null) {
+            removePanel()
+            return
+        }
+        if (
+            currentState.phase == OverlayPhase.RESOLVING ||
+            currentState.phase == OverlayPhase.DOWNLOADING
+        ) {
+            showPanel()
+            return
+        }
         setBubbleFocusable(true)
         clipboardReadJob = serviceScope.launch {
             // Android 10+ only exposes clipboard data to the focused app. Focus is
@@ -241,40 +295,51 @@ class OverlayService : Service() {
     private fun handleBubbleClick() {
         panelControls = false
         panelHint = null
-        when (currentState.phase) {
-            OverlayPhase.RESOLVING, OverlayPhase.DOWNLOADING -> showPanel()
-            else -> {
-                val clipboardUrl = readClipboardUrl()
-                when {
-                    clipboardUrl == null -> {
-                        panelHint =
-                            "剪貼簿沒有可支援的 IG / Threads 公開連結。請先複製貼文 URL，再點一次懸浮球。"
-                        showPanel()
-                    }
-                    clipboardUrl == currentState.detectedUrl &&
-                        currentState.manifest != null -> showPanel()
-                    else -> {
-                        showPanel()
-                        AppGraph.overlayCoordinator.resolve(clipboardUrl)
-                    }
-                }
+        val clipboardUrl = readClipboardUrl()
+        if (clipboardUrl != null) panelUrlText = clipboardUrl
+        when (
+            bubbleContentAction(
+                clipboardUrl = clipboardUrl,
+                detectedUrl = currentState.detectedUrl,
+                hasManifest = currentState.manifest != null,
+            )
+        ) {
+            BubbleContentAction.SHOW_CURRENT -> showPanel()
+            BubbleContentAction.SHOW_CLIPBOARD_HINT -> {
+                panelHint =
+                    "剪貼簿沒有可支援的 IG / Threads 公開連結。請先複製貼文 URL，再點一次懸浮球。"
+                showPanel()
+            }
+            BubbleContentAction.RESOLVE_CLIPBOARD -> {
+                showPanel()
+                AppGraph.overlayCoordinator.resolve(checkNotNull(clipboardUrl))
             }
         }
     }
 
     private fun showPanel() {
+        if (panelUrlText.isBlank()) {
+            panelUrlText = currentState.detectedUrl.orEmpty()
+        }
         if (panelView == null) {
             panelParams = WindowManager.LayoutParams(
-                dp(336),
+                panelWidth(),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT,
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
             }
-            panelView = FrameLayout(this)
+            panelView = OutsideDismissFrameLayout(this) { event ->
+                lastOutsideDismissAt = if (isTouchInsideBubble(event)) {
+                    SystemClock.elapsedRealtime()
+                } else {
+                    0L
+                }
+                removePanel()
+            }
             updatePanelPosition()
             runCatching { windowManager.addView(panelView, panelParams) }
                 .onFailure {
@@ -307,9 +372,9 @@ class OverlayService : Service() {
             renderControlMenu(content)
             return
         }
+        content.addView(buildUrlInput().withTopMargin(10))
         panelHint?.let {
             content.addView(bodyText(it, COLOR_MUTED).withTopMargin(12))
-            content.addView(primaryButton("在 App 貼上連結") { openInApp(null) }.withTopMargin(14))
             return
         }
 
@@ -369,6 +434,115 @@ class OverlayService : Service() {
         row.addView(iconButton("—", "縮小") { removePanel() })
         row.addView(iconButton("×", "關閉懸浮工具") { closeOverlay() })
         return row
+    }
+
+    private fun buildUrlInput(): View {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        container.addView(
+            TextView(this).apply {
+                text = "貼文 URL"
+                textSize = 11f
+                setTextColor(COLOR_MUTED)
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            },
+        )
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val input = EditText(this).apply {
+            setText(panelUrlText)
+            setSelection(text.length)
+            hint = "貼上 Instagram / Threads 連結"
+            setHintTextColor(COLOR_MUTED)
+            setTextColor(MatteTextPrimaryInt)
+            textSize = 12f
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_GO
+            setPadding(dp(10), 0, dp(10), 0)
+            background = roundedDrawable(COLOR_PANEL_ALT, dp(10).toFloat())
+            addTextChangedListener(
+                object : TextWatcher {
+                    override fun beforeTextChanged(
+                        text: CharSequence?,
+                        start: Int,
+                        count: Int,
+                        after: Int,
+                    ) = Unit
+
+                    override fun onTextChanged(
+                        text: CharSequence?,
+                        start: Int,
+                        before: Int,
+                        count: Int,
+                    ) {
+                        panelUrlText = text?.toString().orEmpty()
+                    }
+
+                    override fun afterTextChanged(text: Editable?) = Unit
+                },
+            )
+            setOnEditorActionListener { _, actionId, event ->
+                val submitted = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO ||
+                    event?.keyCode == KeyEvent.KEYCODE_ENTER
+                if (submitted) submitPanelUrl()
+                submitted
+            }
+        }
+        panelUrlInput = input
+        row.addView(
+            input,
+            LinearLayout.LayoutParams(
+                0,
+                dp(42),
+                1f,
+            ),
+        )
+        row.addView(
+            primaryButton(
+                text = if (currentState.phase == OverlayPhase.RESOLVING) "解析中" else "解析",
+                enabled = currentState.phase != OverlayPhase.RESOLVING &&
+                    currentState.phase != OverlayPhase.DOWNLOADING,
+                action = ::submitPanelUrl,
+            ),
+            LinearLayout.LayoutParams(
+                dp(68),
+                dp(42),
+            ).apply { marginStart = dp(8) },
+        )
+        container.addView(
+            row,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(5) },
+        )
+        return container
+    }
+
+    private fun submitPanelUrl() {
+        if (
+            currentState.phase == OverlayPhase.RESOLVING ||
+            currentState.phase == OverlayPhase.DOWNLOADING
+        ) {
+            return
+        }
+        val supportedUrl = UrlNormalizer.extractSupportedUrl(panelUrlText)
+        if (supportedUrl == null) {
+            panelUrlInput?.apply {
+                error = "請輸入有效的 Instagram 或 Threads 貼文連結"
+                requestFocus()
+            }
+            return
+        }
+
+        panelUrlText = supportedUrl
+        panelHint = null
+        panelUrlInput?.clearFocus()
+        AppGraph.overlayCoordinator.resolve(supportedUrl)
     }
 
     private fun renderControlMenu(content: LinearLayout) {
@@ -506,7 +680,8 @@ class OverlayService : Service() {
 
     private fun snapBubbleToEdge() {
         val width = resources.displayMetrics.widthPixels
-        bubbleParams.x = if (bubbleParams.x + dp(28) < width / 2) {
+        bubbleOnRight = bubbleParams.x + dp(28) >= width / 2
+        bubbleParams.x = if (!bubbleOnRight) {
             dp(8)
         } else {
             width - dp(64)
@@ -517,6 +692,7 @@ class OverlayService : Service() {
     }
 
     private fun moveToDefaultPosition() {
+        bubbleOnRight = true
         bubbleParams.x = resources.displayMetrics.widthPixels - dp(64)
         bubbleParams.y = resources.displayMetrics.heightPixels / 3
         runCatching { windowManager.updateViewLayout(bubbleView, bubbleParams) }
@@ -529,14 +705,16 @@ class OverlayService : Service() {
             .edit {
                 putInt(KEY_X, bubbleParams.x)
                 putInt(KEY_Y, bubbleParams.y)
+                putBoolean(KEY_EDGE_RIGHT, bubbleOnRight)
             }
     }
 
     private fun updatePanelPosition() {
         val params = panelParams ?: return
-        val panelWidth = dp(336)
         val screenWidth = resources.displayMetrics.widthPixels
         val screenHeight = resources.displayMetrics.heightPixels
+        val panelWidth = panelWidth()
+        params.width = panelWidth
         params.x = if (bubbleParams.x > screenWidth / 2) {
             (bubbleParams.x - panelWidth - dp(8)).coerceAtLeast(dp(8))
         } else {
@@ -547,10 +725,41 @@ class OverlayService : Service() {
         panelView?.let { runCatching { windowManager.updateViewLayout(it, params) } }
     }
 
+    private fun panelWidth(): Int {
+        val screenWidth = resources.displayMetrics.widthPixels
+        val availableBesideBubble = if (bubbleParams.x > screenWidth / 2) {
+            bubbleParams.x - dp(16)
+        } else {
+            screenWidth - (bubbleParams.x + dp(56)) - dp(16)
+        }
+        return dp(336).coerceAtMost(availableBesideBubble.coerceAtLeast(dp(1)))
+    }
+
+    private fun clampBubbleToScreen() {
+        val maxX = (resources.displayMetrics.widthPixels - dp(56)).coerceAtLeast(0)
+        val minY = dp(24).coerceAtMost(resources.displayMetrics.heightPixels)
+        val maxY = (resources.displayMetrics.heightPixels - dp(80)).coerceAtLeast(minY)
+        bubbleParams.x = bubbleParams.x.coerceIn(0, maxX)
+        bubbleParams.y = bubbleParams.y.coerceIn(minY, maxY)
+    }
+
+    private fun isTouchInsideBubble(event: MotionEvent): Boolean {
+        if (!::bubbleView.isInitialized) return false
+        val location = IntArray(2)
+        return runCatching {
+            bubbleView.getLocationOnScreen(location)
+            event.rawX >= location[0] &&
+                event.rawX <= location[0] + bubbleView.width &&
+                event.rawY >= location[1] &&
+                event.rawY <= location[1] + bubbleView.height
+        }.getOrDefault(false)
+    }
+
     private fun removePanel() {
         panelView?.let { runCatching { windowManager.removeView(it) } }
         panelView = null
         panelParams = null
+        panelUrlInput = null
         panelControls = false
         panelHint = null
     }
@@ -724,7 +933,9 @@ class OverlayService : Service() {
             "com.jeremysu0818.igthreadsdownloader.action.STOP_OVERLAY"
         private const val KEY_X = "bubble_x"
         private const val KEY_Y = "bubble_y"
+        private const val KEY_EDGE_RIGHT = "bubble_edge_right"
         private const val CLIPBOARD_FOCUS_DELAY_MS = 80L
+        private const val OUTSIDE_DISMISS_DEDUPLICATION_MS = 500L
 
         private val COLOR_PANEL = MatteCardInt
         private val COLOR_PANEL_ALT = MatteCardHoverInt
@@ -739,9 +950,39 @@ class OverlayService : Service() {
     }
 }
 
+internal enum class BubbleContentAction {
+    SHOW_CURRENT,
+    SHOW_CLIPBOARD_HINT,
+    RESOLVE_CLIPBOARD,
+}
+
+internal fun bubbleContentAction(
+    clipboardUrl: String?,
+    detectedUrl: String?,
+    hasManifest: Boolean,
+): BubbleContentAction = when {
+    clipboardUrl == null && hasManifest -> BubbleContentAction.SHOW_CURRENT
+    clipboardUrl == null -> BubbleContentAction.SHOW_CLIPBOARD_HINT
+    clipboardUrl == detectedUrl && hasManifest -> BubbleContentAction.SHOW_CURRENT
+    else -> BubbleContentAction.RESOLVE_CLIPBOARD
+}
+
 private class AccessibleBubbleView(context: Context) : TextView(context) {
     override fun performClick(): Boolean {
         super.performClick()
         return true
+    }
+}
+
+private class OutsideDismissFrameLayout(
+    context: Context,
+    private val dismiss: (MotionEvent) -> Unit,
+) : FrameLayout(context) {
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+            dismiss(event)
+            return true
+        }
+        return super.onTouchEvent(event)
     }
 }
