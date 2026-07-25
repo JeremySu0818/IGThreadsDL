@@ -142,8 +142,6 @@ fun MainScreen(
     permissionStatus: AppPermissionStatus,
     autoLaunchEnabled: Boolean,
     onAutoLaunchChange: (Boolean) -> Unit,
-    onOverlaySettings: () -> Unit,
-    onNotificationPermission: () -> Unit,
     onStartOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
     onPasteClipboard: () -> Unit,
@@ -200,8 +198,6 @@ fun MainScreen(
                     autoLaunchEnabled = autoLaunchEnabled,
                     onAutoLaunchChange = onAutoLaunchChange,
                     onSelectThemeMode = viewModel::selectThemeMode,
-                    onOverlaySettings = onOverlaySettings,
-                    onNotificationPermission = onNotificationPermission,
                     onStartOverlay = onStartOverlay,
                     onStopOverlay = onStopOverlay,
                 )
@@ -447,67 +443,6 @@ private fun DownloadPage(
 }
 
 @Composable
-private fun QuickSettingsCard(
-    status: AppPermissionStatus,
-    onOverlaySettings: () -> Unit,
-    onNotificationPermission: () -> Unit,
-    onStartOverlay: () -> Unit,
-    onStopOverlay: () -> Unit,
-) {
-    Column {
-        SectionTitle(
-            title = "快速設定",
-            subtitle = "管理懸浮工具與下載通知。",
-        )
-        Spacer(Modifier.height(10.dp))
-        SectionSurface {
-            SettingsRow(
-                icon = Icons.Default.Tune,
-                title = "懸浮視窗",
-                subtitle = if (status.overlay) "權限已開啟" else "需要系統顯示權限",
-                enabled = status.overlay,
-                onClick = onOverlaySettings,
-            )
-            ContentDivider()
-            SettingsRow(
-                icon = Icons.Default.Info,
-                title = "下載通知",
-                subtitle = if (status.notifications) "通知已允許" else "完成與錯誤提醒尚未開啟",
-                enabled = status.notifications,
-                onClick = onNotificationPermission,
-            )
-            ContentDivider()
-            SettingsRow(
-                icon = Icons.Default.Folder,
-                title = "儲存目錄",
-                subtitle = "系統 Downloads 與媒體庫",
-                enabled = true,
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            HighRadiusButton(
-                text = "啟動懸浮工具",
-                icon = Icons.Default.PlayArrow,
-                primary = true,
-                enabled = status.overlayReady,
-                modifier = Modifier.weight(1f),
-                onClick = onStartOverlay,
-            )
-            HighRadiusButton(
-                text = "關閉懸浮窗",
-                primary = false,
-                modifier = Modifier.weight(1f),
-                onClick = onStopOverlay,
-            )
-        }
-    }
-}
-
-@Composable
 private fun ThemeModeCard(
     currentMode: ThemeMode,
     onSelectMode: (ThemeMode) -> Unit,
@@ -580,8 +515,6 @@ private fun SettingsPage(
     autoLaunchEnabled: Boolean,
     onAutoLaunchChange: (Boolean) -> Unit,
     onSelectThemeMode: (ThemeMode) -> Unit,
-    onOverlaySettings: () -> Unit,
-    onNotificationPermission: () -> Unit,
     onStartOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
 ) {
@@ -625,22 +558,6 @@ private fun SettingsPage(
             }
             item {
                 AiSettingsGroup {
-                    AiSettingsRow(
-                        icon = Icons.Default.Tune,
-                        title = "懸浮視窗",
-                        subtitle = if (permissionStatus.overlay) "已允許" else "需要權限",
-                        trailingText = if (permissionStatus.overlay) "On" else "Off",
-                        onClick = onOverlaySettings,
-                    )
-                    AiSettingsDivider()
-                    AiSettingsRow(
-                        icon = Icons.Default.Info,
-                        title = "下載通知",
-                        subtitle = if (permissionStatus.notifications) "已允許" else "尚未開啟",
-                        trailingText = if (permissionStatus.notifications) "On" else "Off",
-                        onClick = onNotificationPermission,
-                    )
-                    AiSettingsDivider()
                     AiSettingsRow(
                         icon = Icons.Default.Folder,
                         title = "儲存位置",
@@ -1500,73 +1417,6 @@ private fun ContentDivider() {
             .height(1.dp)
             .background(ContentBorder.copy(alpha = 0.72f)),
     )
-}
-
-@Composable
-private fun SettingsRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    enabled: Boolean,
-    trailingText: String? = null,
-    onClick: (() -> Unit)? = null,
-) {
-    var rowModifier = Modifier.fillMaxWidth()
-    if (onClick != null) rowModifier = rowModifier.clickable(onClick = onClick)
-
-    Row(
-        modifier = rowModifier.padding(horizontal = 14.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(ContentSubtleSurface),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = ContentTextPrimary,
-                modifier = Modifier.size(19.dp),
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = ContentTextPrimary,
-                fontSize = 14.sp,
-                lineHeight = 19.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = subtitle,
-                color = ContentTextMuted,
-                fontSize = 11.sp,
-                lineHeight = 16.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        if (trailingText != null) {
-            Text(
-                text = trailingText,
-                color = ContentTextMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(if (enabled) MatteEmerald else MatteAmber),
-            )
-        }
-    }
 }
 
 @Composable

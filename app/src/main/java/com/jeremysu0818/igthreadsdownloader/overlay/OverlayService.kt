@@ -341,7 +341,14 @@ class OverlayService : Service() {
             setViewTreeViewModelStoreOwner(owner)
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
-                IGThreadsDownloaderTheme {
+                val themeMode = androidx.compose.runtime.remember {
+                    runCatching {
+                        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                        val savedName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
+                        ThemeMode.valueOf(savedName ?: ThemeMode.SYSTEM.name)
+                    }.getOrDefault(ThemeMode.SYSTEM)
+                }
+                IGThreadsDownloaderTheme(themeMode = themeMode) {
                     CloseTargetApp(closeTargetState)
                 }
             }

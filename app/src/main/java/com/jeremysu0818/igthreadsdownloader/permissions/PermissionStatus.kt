@@ -17,15 +17,20 @@ import com.jeremysu0818.igthreadsdownloader.overlay.OverlayService
 data class AppPermissionStatus(
     val overlay: Boolean,
     val notifications: Boolean,
+    val accessibility: Boolean,
 ) {
     val overlayReady: Boolean
         get() = overlay
+
+    val allRequiredGranted: Boolean
+        get() = overlay && notifications && accessibility
 }
 
 object PermissionStatus {
     fun current(context: Context): AppPermissionStatus = AppPermissionStatus(
         overlay = Settings.canDrawOverlays(context),
         notifications = notificationsEnabled(context),
+        accessibility = isAutoLaunchDetectorEnabled(context),
     )
 
     fun overlaySettingsIntent(context: Context): Intent =
@@ -43,7 +48,7 @@ object PermissionStatus {
 
     fun isAutoLaunchEnabled(context: Context): Boolean =
         context.getSharedPreferences(OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
-            .getBoolean(KEY_AUTO_LAUNCH_TARGET_APPS, false)
+            .getBoolean(KEY_AUTO_LAUNCH_TARGET_APPS, true)
 
     fun setAutoLaunchEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(OVERLAY_PREFERENCES, Context.MODE_PRIVATE)

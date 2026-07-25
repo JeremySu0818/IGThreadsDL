@@ -14,11 +14,13 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.jeremysu0818.igthreadsdownloader.permissions.AppPermissionStatus
 import com.jeremysu0818.igthreadsdownloader.permissions.PermissionStatus
 import com.jeremysu0818.igthreadsdownloader.ui.MainScreen
 import com.jeremysu0818.igthreadsdownloader.ui.MainViewModel
+import com.jeremysu0818.igthreadsdownloader.ui.StartupPermissionDialog
 import com.jeremysu0818.igthreadsdownloader.ui.theme.IGThreadsDownloaderTheme
 
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -32,6 +34,7 @@ class MainActivity : ComponentActivity() {
         AppPermissionStatus(
             overlay = false,
             notifications = false,
+            accessibility = false,
         ),
     )
     private var autoLaunchEnabled by mutableStateOf(false)
@@ -80,10 +83,6 @@ class MainActivity : ComponentActivity() {
                             startActivity(PermissionStatus.accessibilitySettingsIntent())
                         }
                     },
-                    onOverlaySettings = {
-                        startActivity(PermissionStatus.overlaySettingsIntent(this))
-                    },
-                    onNotificationPermission = ::requestNotificationPermission,
                     onStartOverlay = {
                         if (PermissionStatus.startOverlay(this)) {
                             viewModel.clearMessage()
@@ -99,6 +98,18 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                 )
+                if (!permissionStatus.allRequiredGranted) {
+                    StartupPermissionDialog(
+                        status = permissionStatus,
+                        onRequestOverlay = {
+                            startActivity(PermissionStatus.overlaySettingsIntent(this))
+                        },
+                        onRequestNotifications = ::requestNotificationPermission,
+                        onRequestAccessibility = {
+                            startActivity(PermissionStatus.accessibilitySettingsIntent())
+                        },
+                    )
+                }
             }
         }
     }
@@ -113,7 +124,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         refreshPermissionStatus()
         autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
-        if (permissionStatus.overlayReady && PermissionStatus.shouldRunOverlay(this)) {
+        if (permissionStatus.allRequiredGranted && PermissionStatus.shouldRunOverlay(this)) {
             PermissionStatus.startOverlay(this)
         }
         if (skipClipboardOnce) {
@@ -160,7 +171,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val runtimePermissionGranted =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !runtimePermissionGranted) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             startActivity(PermissionStatus.notificationSettingsIntent(this))
