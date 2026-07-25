@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -38,8 +39,15 @@ class MainActivity : ComponentActivity() {
         ),
     )
     private var autoLaunchEnabled by mutableStateOf(false)
+    private var overlayRunning by mutableStateOf(false)
     private var skipClipboardOnce = false
     private var readClipboardWhenFocused = false
+    private val overlayPreferenceListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == PermissionStatus.KEY_OVERLAY_SERVICE_ACTIVE) {
+                overlayRunning = PermissionStatus.isOverlayRunning(this)
+            }
+        }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -52,6 +60,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handleIntent(intent)
         autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
+        overlayRunning = PermissionStatus.isOverlayRunning(this)
+        getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(overlayPreferenceListener)
         setContent {
             val state by viewModel.state.collectAsState()
             val isDark = when (state.themeMode) {
@@ -73,6 +84,7 @@ class MainActivity : ComponentActivity() {
                     viewModel = viewModel,
                     permissionStatus = permissionStatus,
                     autoLaunchEnabled = autoLaunchEnabled,
+                    overlayRunning = overlayRunning,
                     onAutoLaunchChange = { enabled ->
                         PermissionStatus.setAutoLaunchEnabled(this, enabled)
                         autoLaunchEnabled = enabled
@@ -91,6 +103,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onStopOverlay = {
                         PermissionStatus.stopOverlay(this)
+                    },
+                    onRequestOverlayPermission = {
+                        startActivity(PermissionStatus.overlaySettingsIntent(this))
                     },
                     onPasteClipboard = {
                         clipboardText()?.let {
@@ -124,6 +139,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         refreshPermissionStatus()
         autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
+        overlayRunning = PermissionStatus.isOverlayRunning(this)
         if (permissionStatus.allRequiredGranted && PermissionStatus.shouldRunOverlay(this)) {
             PermissionStatus.startOverlay(this)
         }
@@ -132,6 +148,12 @@ class MainActivity : ComponentActivity() {
         } else {
             readClipboardWhenFocused = true
         }
+    }
+
+    override fun onDestroy() {
+        getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(overlayPreferenceListener)
+        super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

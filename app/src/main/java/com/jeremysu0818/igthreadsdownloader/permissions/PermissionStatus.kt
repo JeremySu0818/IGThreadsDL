@@ -133,6 +133,10 @@ object PermissionStatus {
         context.getSharedPreferences(OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
             .getBoolean(KEY_OVERLAY_ENABLED, true)
 
+    fun isOverlayRunning(context: Context): Boolean =
+        context.getSharedPreferences(OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
+            .getBoolean(KEY_OVERLAY_SERVICE_ACTIVE, false)
+
     private fun notificationsEnabled(context: Context): Boolean {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

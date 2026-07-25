@@ -2,6 +2,7 @@ package com.jeremysu0818.igthreadsdownloader.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -52,6 +54,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -141,9 +144,11 @@ fun MainScreen(
     viewModel: MainViewModel,
     permissionStatus: AppPermissionStatus,
     autoLaunchEnabled: Boolean,
+    overlayRunning: Boolean,
     onAutoLaunchChange: (Boolean) -> Unit,
     onStartOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
+    onRequestOverlayPermission: () -> Unit,
     onPasteClipboard: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
@@ -167,6 +172,11 @@ fun MainScreen(
                     onToggleItem = viewModel::toggleSelection,
                     onSelectAll = viewModel::selectAll,
                     onDownload = viewModel::downloadSelected,
+                    overlayReady = permissionStatus.overlayReady,
+                    overlayRunning = overlayRunning,
+                    onStartOverlay = onStartOverlay,
+                    onStopOverlay = onStopOverlay,
+                    onRequestOverlayPermission = onRequestOverlayPermission,
                 )
                 MainTab.QUEUE -> RecordsPage(
                     records = state.records.filter { it.isActive },
@@ -193,13 +203,10 @@ fun MainScreen(
                     onDelete = viewModel::delete,
                 )
                 MainTab.SETTINGS -> SettingsPage(
-                    permissionStatus = permissionStatus,
                     currentThemeMode = state.themeMode,
                     autoLaunchEnabled = autoLaunchEnabled,
                     onAutoLaunchChange = onAutoLaunchChange,
                     onSelectThemeMode = viewModel::selectThemeMode,
-                    onStartOverlay = onStartOverlay,
-                    onStopOverlay = onStopOverlay,
                 )
             }
         }
@@ -373,6 +380,11 @@ private fun DownloadPage(
     onToggleItem: (String) -> Unit,
     onSelectAll: (Boolean) -> Unit,
     onDownload: () -> Unit,
+    overlayReady: Boolean,
+    overlayRunning: Boolean,
+    onStartOverlay: () -> Unit,
+    onStopOverlay: () -> Unit,
+    onRequestOverlayPermission: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier
@@ -392,6 +404,17 @@ private fun DownloadPage(
                 subtitle = null,
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
+        }
+        item {
+            ContentFrame {
+                OverlayQuickControlCard(
+                    overlayReady = overlayReady,
+                    overlayRunning = overlayRunning,
+                    onStartOverlay = onStartOverlay,
+                    onStopOverlay = onStopOverlay,
+                    onRequestOverlayPermission = onRequestOverlayPermission,
+                )
+            }
         }
         item {
             ContentFrame {
@@ -439,6 +462,77 @@ private fun DownloadPage(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OverlayQuickControlCard(
+    overlayReady: Boolean,
+    overlayRunning: Boolean,
+    onStartOverlay: () -> Unit,
+    onStopOverlay: () -> Unit,
+    onRequestOverlayPermission: () -> Unit,
+) {
+    val onToggle = {
+        when {
+            !overlayReady -> onRequestOverlayPermission()
+            overlayRunning -> onStopOverlay()
+            else -> onStartOverlay()
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(82.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(ContentSurface)
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(ContentSubtleSurface),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.PictureInPictureAlt,
+                contentDescription = null,
+                tint = if (overlayRunning) ContentAccent else ContentTextMuted,
+                modifier = Modifier.size(21.dp),
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "懸浮工具",
+                color = ContentTextPrimary,
+                fontSize = 17.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = when {
+                    !overlayReady -> "需要允許顯示在其他 App 上層"
+                    overlayRunning -> "已啟動，可在其他 App 使用"
+                    else -> "點一下開啟快速下載工具"
+                },
+                color = ContentTextMuted,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        ReferenceSwitch(
+            checked = overlayRunning,
+            onCheckedChange = { onToggle() },
+        )
     }
 }
 
@@ -510,13 +604,10 @@ private fun ThemeOptionChip(
 
 @Composable
 private fun SettingsPage(
-    permissionStatus: AppPermissionStatus,
     currentThemeMode: ThemeMode,
     autoLaunchEnabled: Boolean,
     onAutoLaunchChange: (Boolean) -> Unit,
     onSelectThemeMode: (ThemeMode) -> Unit,
-    onStartOverlay: () -> Unit,
-    onStopOverlay: () -> Unit,
 ) {
     var showColorModeDialog by remember { mutableStateOf(false) }
 
@@ -563,24 +654,6 @@ private fun SettingsPage(
                         title = "儲存位置",
                         subtitle = "Downloads / 媒體庫",
                         trailingText = "自動",
-                    )
-                }
-            }
-            item {
-                AiSettingsGroup {
-                    AiSettingsRow(
-                        icon = Icons.Default.PlayArrow,
-                        title = "啟動懸浮工具",
-                        subtitle = if (permissionStatus.overlayReady) "可立即啟動" else "請先完成權限設定",
-                        enabled = permissionStatus.overlayReady,
-                        onClick = onStartOverlay,
-                    )
-                    AiSettingsDivider()
-                    AiSettingsRow(
-                        icon = Icons.Default.Close,
-                        title = "關閉懸浮工具",
-                        subtitle = "停止目前顯示的懸浮視窗",
-                        onClick = onStopOverlay,
                     )
                 }
             }
@@ -661,18 +734,32 @@ private fun ReferenceSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val thumbOffset by animateDpAsState(
+        targetValue = if (checked) 20.dp else 0.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "switchThumbOffset",
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = if (checked) ContentSwitchOn else ContentSwitchOff,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "switchBackgroundColor",
+    )
+
     Box(
         modifier = Modifier
             .width(52.dp)
             .height(32.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(if (checked) ContentSwitchOn else ContentSwitchOff)
+            .background(backgroundColor)
             .clickable { onCheckedChange(!checked) }
             .padding(3.dp),
-        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         Box(
             modifier = Modifier
+                .offset(x = thumbOffset)
                 .size(26.dp)
                 .clip(CircleShape)
                 .background(Color.White),
