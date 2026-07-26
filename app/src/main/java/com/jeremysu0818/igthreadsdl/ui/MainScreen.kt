@@ -593,10 +593,7 @@ private fun SettingsPage(
                         subtitle = currentThemeMode.displayName(strings),
                         onClick = { showColorModeDialog = true },
                     )
-                }
-            }
-            item {
-                AiSettingsGroup {
+                    AiSettingsDivider()
                     AiSettingsRow(
                         icon = Icons.Default.Language,
                         title = strings.settingsLanguageTitle,
