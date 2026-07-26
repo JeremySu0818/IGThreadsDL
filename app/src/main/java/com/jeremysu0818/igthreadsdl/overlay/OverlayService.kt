@@ -34,6 +34,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -258,6 +259,10 @@ class OverlayService : Service() {
         createBubble()
         serviceScope.launch {
             AppGraph.overlayCoordinator.state.collectLatest { state ->
+                val downloadJustCompleted =
+                    currentState.phase == OverlayPhase.DOWNLOADING &&
+                        state.phase == OverlayPhase.READY &&
+                        state.completedSelectionIds.isNotEmpty()
                 currentState = state
                 val manifestKey = state.manifest?.sourceUrl
                 if (manifestKey != null && manifestKey != lastManifestKey) {
@@ -267,6 +272,13 @@ class OverlayService : Service() {
                 }
                 renderBubble(state)
                 if (panelView != null) renderPanel()
+                if (downloadJustCompleted) {
+                    Toast.makeText(
+                        this@OverlayService,
+                        strings.downloadStatusSucceeded,
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
             }
         }
     }
@@ -957,15 +969,24 @@ class OverlayService : Service() {
                 dp(154).coerceAtMost(dp(48) * manifest.items.size + dp(8)),
             ).apply { topMargin = dp(8) },
         )
-        val downloadLabel = if (currentState.phase == OverlayPhase.DOWNLOADING) {
-            strings.overlayBtnDownloading
-        } else {
-            strings.overlayBtnDownloadSelected
+        val selectionAlreadyDownloaded =
+            selectedIds.isNotEmpty() &&
+                selectedIds == currentState.completedSelectionIds
+        if (currentState.completedSelectionIds.isNotEmpty()) {
+            content.addView(
+                bodyText(strings.downloadStatusSucceeded, COLOR_READY).withTopMargin(10),
+            )
+        }
+        val downloadLabel = when {
+            currentState.phase == OverlayPhase.DOWNLOADING -> strings.overlayBtnDownloading
+            selectionAlreadyDownloaded -> strings.downloadStatusSucceeded
+            else -> strings.overlayBtnDownloadSelected
         }
         content.addView(
             primaryButton(
                 text = downloadLabel,
-                enabled = currentState.phase != OverlayPhase.DOWNLOADING,
+                enabled = currentState.phase != OverlayPhase.DOWNLOADING &&
+                    !selectionAlreadyDownloaded,
             ) {
                 AppGraph.overlayCoordinator.download(selectedIds)
             }.withTopMargin(12),
@@ -1048,6 +1069,7 @@ class OverlayService : Service() {
             isChecked = item.id in selectedIds
             setOnCheckedChangeListener { _, checked ->
                 if (checked) selectedIds += item.id else selectedIds -= item.id
+                panelView?.post { renderPanel() }
             }
         }
 

@@ -31,6 +31,7 @@ data class OverlayState(
     val manifest: MediaManifest? = null,
     val errorMessage: String? = null,
     val activeDownloadIds: Set<Long> = emptySet(),
+    val completedSelectionIds: Set<String> = emptySet(),
 )
 
 class OverlayCoordinator(
@@ -51,6 +52,7 @@ class OverlayCoordinator(
                 detectedUrl = null,
                 manifest = null,
                 errorMessage = message,
+                completedSelectionIds = emptySet(),
             )
         }
     }
@@ -69,6 +71,7 @@ class OverlayCoordinator(
                     detectedUrl = url,
                     manifest = null,
                     errorMessage = null,
+                    completedSelectionIds = emptySet(),
                 )
             }
             when (val result = resolverRepository.resolve(url)) {
@@ -96,6 +99,7 @@ class OverlayCoordinator(
     }
 
     fun download(selectedIds: Set<String>) {
+        if (_state.value.phase == OverlayPhase.DOWNLOADING) return
         val manifest = _state.value.manifest ?: return
         val selected = manifest.items.filter { it.id in selectedIds }
         if (selected.isEmpty()) {
@@ -103,6 +107,16 @@ class OverlayCoordinator(
                 it.copy(phase = OverlayPhase.ERROR, errorMessage = strings.msgSelectAtLeastOne)
             }
             return
+        }
+        val selectionIds = selected.mapTo(linkedSetOf()) { it.id }
+        if (_state.value.completedSelectionIds == selectionIds) return
+
+        _state.update {
+            it.copy(
+                phase = OverlayPhase.DOWNLOADING,
+                errorMessage = null,
+                activeDownloadIds = emptySet(),
+            )
         }
         scope.launch {
             val records = downloadRepository.enqueue(manifest, selected)
@@ -117,6 +131,7 @@ class OverlayCoordinator(
                             record.statusMessage
                         } ?: strings.overlayErrorDefault,
                         activeDownloadIds = emptySet(),
+                        completedSelectionIds = emptySet(),
                     )
                 }
                 return@launch
@@ -126,6 +141,7 @@ class OverlayCoordinator(
                     phase = OverlayPhase.DOWNLOADING,
                     errorMessage = null,
                     activeDownloadIds = ids,
+                    completedSelectionIds = emptySet(),
                 )
             }
             val completed = downloadRepository.records.first { all ->
@@ -138,6 +154,7 @@ class OverlayCoordinator(
                     phase = if (failure == null) OverlayPhase.READY else OverlayPhase.ERROR,
                     errorMessage = failure?.statusMessage,
                     activeDownloadIds = emptySet(),
+                    completedSelectionIds = if (failure == null) selectionIds else emptySet(),
                 )
             }
         }
