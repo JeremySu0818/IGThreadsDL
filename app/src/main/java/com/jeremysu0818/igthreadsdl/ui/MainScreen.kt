@@ -853,7 +853,13 @@ private fun ColorModeDialog(
         }
 
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -862,6 +868,11 @@ private fun ColorModeDialog(
                     .widthIn(max = 340.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(ContentBackground)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    )
                     .padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 12.dp),
             ) {
                 Text(
@@ -957,7 +968,13 @@ private fun LanguageDialog(
         }
 
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -967,6 +984,11 @@ private fun LanguageDialog(
                     .heightIn(max = 520.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(ContentBackground)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    )
                     .padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 12.dp),
             ) {
                 Text(
