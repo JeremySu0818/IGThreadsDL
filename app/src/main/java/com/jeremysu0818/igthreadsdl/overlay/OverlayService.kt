@@ -40,6 +40,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -49,13 +50,19 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
@@ -129,6 +136,37 @@ private class CloseTargetState {
         isVisible = false
         isActive = false
     }
+}
+
+private val CaptionCloseTargetDarkColorScheme = darkColorScheme(
+    primary = ComposeColor(0xFFD0BCFF),
+    secondary = ComposeColor(0xFFCCC2DC),
+    tertiary = ComposeColor(0xFFEFB8C8),
+)
+
+private val CaptionCloseTargetLightColorScheme = lightColorScheme(
+    primary = ComposeColor(0xFF6650A4),
+    secondary = ComposeColor(0xFF625B71),
+    tertiary = ComposeColor(0xFF7D5260),
+)
+
+@Composable
+private fun CaptionCloseTargetTheme(content: @Composable () -> Unit) {
+    val darkTheme = isSystemInDarkTheme()
+    val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val context = LocalContext.current
+        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else if (darkTheme) {
+        CaptionCloseTargetDarkColorScheme
+    } else {
+        CaptionCloseTargetLightColorScheme
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content,
+    )
 }
 
 @Composable
@@ -298,9 +336,9 @@ class OverlayService : Service() {
         if (!::windowManager.isInitialized || !::bubbleParams.isInitialized) return
 
         bubbleParams.x = if (bubbleOnRight) {
-            resources.displayMetrics.widthPixels - dp(64)
+            resources.displayMetrics.widthPixels - dp(BUBBLE_EDGE_OFFSET_DP)
         } else {
-            dp(8)
+            dp(BUBBLE_MARGIN_DP)
         }
         clampBubbleToScreen()
         runCatching { windowManager.updateViewLayout(bubbleView, bubbleParams) }
@@ -331,17 +369,17 @@ class OverlayService : Service() {
         )
         bubbleView = AccessibleBubbleView(this).apply {
             gravity = Gravity.CENTER
-            textSize = 22f
+            textSize = BUBBLE_TEXT_SIZE_SP
             setTextColor(MatteTextPrimaryInt)
             elevation = 12f
             contentDescription = strings.overlayAccessibilityDescription
-            setPadding(0, 0, 0, dp(2))
+            setPadding(0, 0, 0, dp(1))
         }
-        val savedX = preferences.getInt(KEY_X, resources.displayMetrics.widthPixels - dp(68))
-        bubbleOnRight = preferences.getBoolean(KEY_EDGE_RIGHT, savedX > dp(64))
+        val savedX = preferences.getInt(KEY_X, resources.displayMetrics.widthPixels - dp(BUBBLE_EDGE_OFFSET_DP))
+        bubbleOnRight = preferences.getBoolean(KEY_EDGE_RIGHT, savedX > dp(BUBBLE_EDGE_OFFSET_DP))
         bubbleParams = WindowManager.LayoutParams(
-            dp(56),
-            dp(56),
+            dp(BUBBLE_SIZE_DP),
+            dp(BUBBLE_SIZE_DP),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -350,15 +388,16 @@ class OverlayService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = if (bubbleOnRight) {
-                resources.displayMetrics.widthPixels - dp(64)
+                resources.displayMetrics.widthPixels - dp(BUBBLE_EDGE_OFFSET_DP)
             } else {
-                dp(8)
+                dp(BUBBLE_MARGIN_DP)
             }
             y = preferences.getInt(KEY_Y, resources.displayMetrics.heightPixels / 3)
         }
         clampBubbleToScreen()
         attachBubbleGestures()
         runCatching { windowManager.addView(bubbleView, bubbleParams) }
+            .onSuccess { createCloseTargetView() }
             .onFailure { stopSelf() }
     }
 
@@ -386,14 +425,7 @@ class OverlayService : Service() {
             setViewTreeViewModelStoreOwner(owner)
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
-                val themeMode = androidx.compose.runtime.remember {
-                    runCatching {
-                        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                        val savedName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name)
-                        ThemeMode.valueOf(savedName ?: ThemeMode.SYSTEM.name)
-                    }.getOrDefault(ThemeMode.SYSTEM)
-                }
-                IGThreadsDLTheme(themeMode = themeMode) {
+                CaptionCloseTargetTheme {
                     CloseTargetApp(closeTargetState)
                 }
             }
@@ -447,7 +479,6 @@ class OverlayService : Service() {
                     moved = false
                     longPressed = false
                     longPressJob?.cancel()
-                    createCloseTargetView()
                     closeTargetState.show()
                     longPressJob = serviceScope.launch {
                         kotlinx.coroutines.delay(ViewConfiguration.getLongPressTimeout().toLong())
@@ -467,7 +498,7 @@ class OverlayService : Service() {
                     if (moved) {
                         bubbleParams.x = (startX + dx).roundToInt().coerceIn(
                             0,
-                            resources.displayMetrics.widthPixels - dp(56),
+                            resources.displayMetrics.widthPixels - dp(BUBBLE_SIZE_DP),
                         )
                         bubbleParams.y = (startY + dy).roundToInt().coerceIn(
                             dp(24),
@@ -505,7 +536,7 @@ class OverlayService : Service() {
                         actionMasked = event.actionMasked,
                         isOverCloseTarget = closeTargetState.isActive,
                     )
-                    removeCloseTargetView()
+                    closeTargetState.hide()
                     if (shouldClose) {
                         closeOverlay()
                     } else if (event.actionMasked == MotionEvent.ACTION_UP) {
@@ -1083,17 +1114,17 @@ class OverlayService : Service() {
             else -> "!" to COLOR_ERROR
         }
         bubbleView.text = label
-        bubbleView.background = roundedDrawable(color, dp(28).toFloat())
-        bubbleView.alpha = if (state.phase == OverlayPhase.IDLE) 0.9f else 1f
+        bubbleView.background = roundedDrawable(color, dp(BUBBLE_RADIUS_DP))
+        bubbleView.alpha = if (state.phase == OverlayPhase.IDLE) 0.5f else 0.7f
     }
 
     private fun snapBubbleToEdge() {
         val width = resources.displayMetrics.widthPixels
-        bubbleOnRight = bubbleParams.x + dp(28) >= width / 2
+        bubbleOnRight = bubbleParams.x + dp(BUBBLE_RADIUS_DP).roundToInt() >= width / 2
         bubbleParams.x = if (!bubbleOnRight) {
-            dp(8)
+            dp(BUBBLE_MARGIN_DP)
         } else {
-            width - dp(64)
+            width - dp(BUBBLE_EDGE_OFFSET_DP)
         }
         runCatching { windowManager.updateViewLayout(bubbleView, bubbleParams) }
         saveBubblePosition()
@@ -1102,7 +1133,7 @@ class OverlayService : Service() {
 
     private fun moveToDefaultPosition() {
         bubbleOnRight = true
-        bubbleParams.x = resources.displayMetrics.widthPixels - dp(64)
+        bubbleParams.x = resources.displayMetrics.widthPixels - dp(BUBBLE_EDGE_OFFSET_DP)
         bubbleParams.y = resources.displayMetrics.heightPixels / 3
         runCatching { windowManager.updateViewLayout(bubbleView, bubbleParams) }
         saveBubblePosition()
@@ -1125,9 +1156,9 @@ class OverlayService : Service() {
         val panelWidth = panelWidth()
         params.width = panelWidth
         params.x = if (bubbleParams.x > screenWidth / 2) {
-            (bubbleParams.x - panelWidth - dp(8)).coerceAtLeast(dp(8))
+            (bubbleParams.x - panelWidth - dp(BUBBLE_MARGIN_DP)).coerceAtLeast(dp(BUBBLE_MARGIN_DP))
         } else {
-            (bubbleParams.x + dp(64)).coerceAtMost(screenWidth - panelWidth - dp(8))
+            (bubbleParams.x + dp(BUBBLE_EDGE_OFFSET_DP)).coerceAtMost(screenWidth - panelWidth - dp(BUBBLE_MARGIN_DP))
         }
         val panelHeight = panelView?.height ?: 0
         val maxY = if (panelHeight > 0) {
@@ -1144,13 +1175,13 @@ class OverlayService : Service() {
         val availableBesideBubble = if (bubbleParams.x > screenWidth / 2) {
             bubbleParams.x - dp(16)
         } else {
-            screenWidth - (bubbleParams.x + dp(56)) - dp(16)
+            screenWidth - (bubbleParams.x + dp(BUBBLE_SIZE_DP)) - dp(16)
         }
         return dp(336).coerceAtMost(availableBesideBubble.coerceAtLeast(dp(1)))
     }
 
     private fun clampBubbleToScreen() {
-        val maxX = (resources.displayMetrics.widthPixels - dp(56)).coerceAtLeast(0)
+        val maxX = (resources.displayMetrics.widthPixels - dp(BUBBLE_SIZE_DP)).coerceAtLeast(0)
         val minY = 0
         val maxY = (resources.displayMetrics.heightPixels - dp(80)).coerceAtLeast(minY)
         bubbleParams.x = bubbleParams.x.coerceIn(0, maxX)
@@ -1321,7 +1352,18 @@ class OverlayService : Service() {
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).roundToInt()
 
+    private fun dp(value: Float): Float =
+        value * resources.displayMetrics.density
+
     companion object {
+        private const val BUBBLE_SCALE = 0.7f
+        private const val BASE_BUBBLE_SIZE_DP = 56
+        private val BUBBLE_SIZE_DP = (BASE_BUBBLE_SIZE_DP * BUBBLE_SCALE).roundToInt() // 39 dp
+        private val BUBBLE_RADIUS_DP = BUBBLE_SIZE_DP / 2f // 19.5 dp
+        private const val BUBBLE_MARGIN_DP = 8
+        private val BUBBLE_EDGE_OFFSET_DP = BUBBLE_SIZE_DP + BUBBLE_MARGIN_DP // 47 dp
+        private val BUBBLE_TEXT_SIZE_SP = 22f * BUBBLE_SCALE // 15.4f
+
         private const val NOTIFICATION_CHANNEL_ID = "overlay_service"
         private const val NOTIFICATION_ID = 1001
         private const val ACTION_STOP =

@@ -9,3 +9,6 @@ captures/
 .cxx/
 .DS_Store
 .kotlin/
+*.keystore
+*.jks
+*.apk
