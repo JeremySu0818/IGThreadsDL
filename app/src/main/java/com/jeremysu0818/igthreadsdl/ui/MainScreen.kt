@@ -32,6 +32,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -76,6 +78,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -109,6 +112,7 @@ import com.jeremysu0818.igthreadsdl.domain.download.DownloadStatus
 import com.jeremysu0818.igthreadsdl.domain.model.MediaItem
 import com.jeremysu0818.igthreadsdl.domain.model.MediaItemType
 import com.jeremysu0818.igthreadsdl.domain.model.MediaManifest
+import com.jeremysu0818.igthreadsdl.domain.model.MediaPreview
 import com.jeremysu0818.igthreadsdl.permissions.AppPermissionStatus
 import com.jeremysu0818.igthreadsdl.ui.theme.ContentAccent
 import com.jeremysu0818.igthreadsdl.ui.theme.ContentBackground
@@ -284,8 +288,8 @@ private fun BottomNavBar(
                 state = hazeState,
                 style = HazeStyle(
                     backgroundColor = MatteBg,
-                    blurRadius = 15.dp,
-                    tint = HazeTint(MatteCard.copy(alpha = 0.78f))
+                    blurRadius = 13.dp,
+                    tint = HazeTint(MatteCard.copy(alpha = 0.55f))
                 )
             )
             .border(1.dp, MatteCardBorder, CircleShape),
@@ -1227,18 +1231,15 @@ private fun ManifestCard(
             subtitle = "${manifest.platform.value.uppercase()} · ${manifest.author?.let { "@$it" } ?: strings.manifestPublicSource}",
             trailing = String.format(strings.manifestItemsCount, manifest.items.size),
         )
-        manifest.thumbnailUrl?.let {
+        val previews = manifest.previews
+        if (previews.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
-            AsyncImage(
-                model = it,
-                contentDescription = strings.manifestTitle,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1.78f)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(ContentSubtleSurface),
-                contentScale = ContentScale.Crop,
-            )
+            key(manifest.sourceUrl, previews) {
+                ManifestPreviewCarousel(
+                    previews = previews,
+                    contentDescription = strings.manifestTitle,
+                )
+            }
         }
 
         manifest.caption?.let {
@@ -1309,6 +1310,62 @@ private fun ManifestCard(
 }
 
 @Composable
+private fun ManifestPreviewCarousel(
+    previews: List<MediaPreview>,
+    contentDescription: String,
+) {
+    val pagerState = rememberPagerState(pageCount = { previews.size })
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.78f)
+                .clip(RoundedCornerShape(22.dp))
+                .background(ContentSubtleSurface),
+        ) { page ->
+            AsyncImage(
+                model = previews[page].imageUrl,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+
+        previews[pagerState.currentPage].filename?.let { filename ->
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = filename,
+                color = ContentTextMuted,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        if (previews.size > 1) {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                previews.indices.forEach { page ->
+                    Box(
+                        Modifier
+                            .size(if (pagerState.currentPage == page) 7.dp else 5.dp)
+                            .background(
+                                color = if (pagerState.currentPage == page) ContentAccent else ContentBorder,
+                                shape = CircleShape,
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun MediaItemRow(
     item: MediaItem,
     index: Int,
@@ -1347,6 +1404,13 @@ private fun MediaItemRow(
                 String.format(strings.mediaItemDetails, item.mimeType ?: strings.mediaItemFallbackMime, formatBytes(item.contentLength, strings)),
                 color = ContentTextMuted,
                 fontSize = 11.sp,
+            )
+            Text(
+                text = item.filename,
+                color = ContentTextMuted,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

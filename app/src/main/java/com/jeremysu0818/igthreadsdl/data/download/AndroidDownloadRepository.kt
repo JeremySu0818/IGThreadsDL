@@ -3,16 +3,19 @@ package com.jeremysu0818.igthreadsdl.data.download
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.ClipData
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.database.Cursor
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import coil.annotation.ExperimentalCoilApi
+import coil.imageLoader
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadRecord
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadRepository
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadStatus
@@ -49,8 +52,12 @@ class AndroidDownloadRepository(
     private val preferences =
         appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val localId = AtomicLong(-1L)
-    private val _records = MutableStateFlow(loadRecords())
+    private val initialRecords = loadRecords()
+    private val localId = AtomicLong(
+        (initialRecords.minOfOrNull { it.managerId } ?: 0L)
+            .coerceAtMost(0L) - 1L,
+    )
+    private val _records = MutableStateFlow(initialRecords)
     override val records: StateFlow<List<DownloadRecord>> = _records.asStateFlow()
 
     private val strings: AppStrings
@@ -153,7 +160,11 @@ class AndroidDownloadRepository(
         val removed = if (record.managerId > 0) {
             runCatching { downloadManager.remove(record.managerId) >= 0 }.getOrDefault(false)
         } else {
-            true
+            record.localUri?.let { uri ->
+                runCatching {
+                    appContext.contentResolver.delete(Uri.parse(uri), null, null) > 0
+                }.getOrDefault(false)
+            } ?: true
         }
         updateRecords(_records.value.filterNot { it.managerId == managerId })
         removed
@@ -228,6 +239,91 @@ class AndroidDownloadRepository(
     }
 
     private fun enqueueOne(
+        manifest: MediaManifest,
+        item: MediaItem,
+        filename: String,
+    ): DownloadRecord =
+        cachedImageRecord(manifest, item, filename)
+            ?: enqueueWithDownloadManager(manifest, item, filename)
+
+    @OptIn(ExperimentalCoilApi::class)
+    private fun cachedImageRecord(
+        manifest: MediaManifest,
+        item: MediaItem,
+        filename: String,
+    ): DownloadRecord? {
+        if (item.type != MediaItemType.IMAGE) return null
+        val diskCache = appContext.imageLoader.diskCache ?: return null
+        val snapshot = runCatching {
+            diskCache.openSnapshot(item.downloadUrl)
+        }.getOrNull() ?: return null
+
+        return snapshot.use {
+            val cachedFile = snapshot.data.toFile()
+            val cachedBytes = cachedFile.length()
+            if (cachedBytes <= 0L) return@use null
+
+            val resolver = appContext.contentResolver
+            var destination: Uri? = null
+            runCatching {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    item.mimeType?.let { put(MediaStore.MediaColumns.MIME_TYPE, it) }
+                    put(
+                        MediaStore.MediaColumns.RELATIVE_PATH,
+                        "${Environment.DIRECTORY_DOWNLOADS}/$DOWNLOAD_FOLDER",
+                    )
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                destination = resolver.insert(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    values,
+                ) ?: error("Unable to create cached download destination")
+                resolver.openOutputStream(checkNotNull(destination), "w")!!.use { output ->
+                    cachedFile.inputStream().use { input ->
+                        input.copyTo(output)
+                    }
+                }
+                resolver.update(
+                    checkNotNull(destination),
+                    ContentValues().apply {
+                        put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    },
+                    null,
+                    null,
+                )
+
+                val now = System.currentTimeMillis()
+                DownloadRecord(
+                    managerId = localId.getAndDecrement(),
+                    platform = manifest.platform,
+                    author = manifest.author,
+                    sourceUrl = manifest.sourceUrl,
+                    mediaId = item.id,
+                    mediaType = item.type,
+                    downloadUrl = item.downloadUrl,
+                    thumbnailUrl = item.thumbnailUrl,
+                    filename = filename,
+                    mimeType = item.mimeType,
+                    requestHeaders = item.requestHeaders,
+                    status = DownloadStatus.SUCCEEDED,
+                    statusMessage = strings.downloadStatusSucceeded,
+                    bytesDownloaded = cachedBytes,
+                    totalBytes = cachedBytes,
+                    localUri = checkNotNull(destination).toString(),
+                    createdAt = now,
+                    updatedAt = now,
+                )
+            }.getOrElse {
+                destination?.let { uri ->
+                    runCatching { resolver.delete(uri, null, null) }
+                }
+                null
+            }
+        }
+    }
+
+    private fun enqueueWithDownloadManager(
         manifest: MediaManifest,
         item: MediaItem,
         filename: String,

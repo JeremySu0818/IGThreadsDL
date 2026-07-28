@@ -19,6 +19,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputType
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -73,10 +74,12 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.recyclerview.widget.RecyclerView
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import androidx.viewpager2.widget.ViewPager2
 import coil.load
 import com.jeremysu0818.igthreadsdl.AppGraph
 import com.jeremysu0818.igthreadsdl.MainActivity
@@ -84,6 +87,7 @@ import com.jeremysu0818.igthreadsdl.R
 import com.jeremysu0818.igthreadsdl.data.resolver.UrlNormalizer
 import com.jeremysu0818.igthreadsdl.domain.model.MediaItem
 import com.jeremysu0818.igthreadsdl.domain.model.MediaItemType
+import com.jeremysu0818.igthreadsdl.domain.model.MediaPreview
 import com.jeremysu0818.igthreadsdl.permissions.PermissionStatus
 import com.jeremysu0818.igthreadsdl.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
@@ -263,6 +267,7 @@ class OverlayService : Service() {
     private var lastOutsideDismissAt = 0L
     private var panelUrlText = ""
     private var panelUrlInput: EditText? = null
+    private var previewPageIndex = 0
     private var closeTargetView: ComposeView? = null
     private var closeTargetLifecycle: OverlayLifecycleOwner? = null
     private val closeTargetState = CloseTargetState()
@@ -305,6 +310,7 @@ class OverlayService : Service() {
                 val manifestKey = state.manifest?.sourceUrl
                 if (manifestKey != null && manifestKey != lastManifestKey) {
                     lastManifestKey = manifestKey
+                    previewPageIndex = 0
                     selectedIds.clear()
                     selectedIds += state.manifest.items.map { it.id }
                 }
@@ -956,19 +962,13 @@ class OverlayService : Service() {
                 COLOR_MUTED,
             ).withTopMargin(10),
         )
-        manifest.thumbnailUrl?.let { thumbnailUrl ->
+        val previews = manifest.previews
+        if (previews.isNotEmpty()) {
             content.addView(
-                ImageView(this).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = roundedDrawable(COLOR_PANEL_ALT, dp(12).toFloat())
-                    clipToOutline = true
-                    load(thumbnailUrl) {
-                        crossfade(true)
-                    }
-                },
+                previewCarousel(previews),
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(118),
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
                 ).apply { topMargin = dp(10) },
             )
         }
@@ -997,7 +997,7 @@ class OverlayService : Service() {
             },
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(154).coerceAtMost(dp(48) * manifest.items.size + dp(8)),
+                dp(178).coerceAtMost(dp(64) * manifest.items.size + dp(8)),
             ).apply { topMargin = dp(8) },
         )
         val selectionAlreadyDownloaded =
@@ -1027,6 +1027,118 @@ class OverlayService : Service() {
                 openInApp(manifest.sourceUrl)
             }.withTopMargin(8),
         )
+    }
+
+    private fun previewCarousel(previews: List<MediaPreview>): View {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        val pager = ViewPager2(this).apply {
+            adapter = PreviewImageAdapter(previews)
+            offscreenPageLimit = 1
+            background = roundedDrawable(COLOR_PANEL_ALT, dp(12).toFloat())
+            clipToOutline = true
+        }
+        container.addView(
+            pager,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(118),
+            ),
+        )
+
+        val filenameView = TextView(this).apply {
+            setTextColor(COLOR_MUTED)
+            textSize = 11f
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.MIDDLE
+            gravity = Gravity.CENTER
+        }
+        container.addView(
+            filenameView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(7) },
+        )
+
+        var updateDots: (Int) -> Unit = {}
+        if (previews.size > 1) {
+            val dots = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            val dotViews = previews.map {
+                View(this).also { dot ->
+                    dots.addView(
+                        dot,
+                        LinearLayout.LayoutParams(dp(5), dp(5)).apply {
+                            marginStart = dp(2)
+                            marginEnd = dp(2)
+                        },
+                    )
+                }
+            }
+            updateDots = { selectedPage ->
+                dotViews.forEachIndexed { index, dot ->
+                    dot.background = roundedDrawable(
+                        if (index == selectedPage) COLOR_ACCENT else COLOR_MUTED,
+                        dp(3).toFloat(),
+                    )
+                    dot.alpha = if (index == selectedPage) 1f else 0.45f
+                }
+            }
+            container.addView(
+                dots,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    dp(5),
+                ).apply { topMargin = dp(8) },
+            )
+        }
+
+        fun updatePage(position: Int) {
+            previewPageIndex = position
+            filenameView.text = previews[position].filename.orEmpty()
+            updateDots(position)
+        }
+        pager.registerOnPageChangeCallback(
+            object : ViewPager2.OnPageChangeCallback() {
+                override fun onPageSelected(position: Int) {
+                    updatePage(position)
+                }
+            },
+        )
+        val initialPage = previewPageIndex.coerceIn(previews.indices)
+        updatePage(initialPage)
+        pager.setCurrentItem(initialPage, false)
+        return container
+    }
+
+    private class PreviewImageAdapter(
+        private val previews: List<MediaPreview>,
+    ) : RecyclerView.Adapter<PreviewImageAdapter.PreviewImageHolder>() {
+        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): PreviewImageHolder =
+            PreviewImageHolder(
+                ImageView(parent.context).apply {
+                    layoutParams = android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                },
+            )
+
+        override fun onBindViewHolder(holder: PreviewImageHolder, position: Int) {
+            holder.image.load(previews[position].imageUrl) {
+                crossfade(true)
+            }
+        }
+
+        override fun getItemCount(): Int = previews.size
+
+        class PreviewImageHolder(val image: ImageView) : RecyclerView.ViewHolder(image)
     }
 
     private fun updateNotification() {
@@ -1087,7 +1199,7 @@ class OverlayService : Service() {
                 index + 1,
                 kind,
                 formatBytes(item.contentLength),
-            )
+            ) + "\n${item.filename}"
             textSize = 13f
             setTextColor(MatteTextPrimaryInt)
             buttonTintList = ColorStateList(

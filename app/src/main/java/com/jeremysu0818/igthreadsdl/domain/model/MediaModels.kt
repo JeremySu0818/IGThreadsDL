@@ -19,6 +19,11 @@ enum class MediaItemType(val value: String) {
     VIDEO("video"),
 }
 
+data class MediaPreview(
+    val imageUrl: String,
+    val filename: String?,
+)
+
 data class MediaManifest(
     val platform: MediaPlatform,
     val type: ManifestType,
@@ -30,7 +35,28 @@ data class MediaManifest(
     val items: List<MediaItem>,
     val isPartial: Boolean = false,
     val warnings: List<String> = emptyList(),
-)
+) {
+    val previews: List<MediaPreview>
+        get() = items.mapNotNull { item ->
+            val imageUrl = when (item.type) {
+                MediaItemType.IMAGE -> item.downloadUrl
+                MediaItemType.VIDEO -> item.thumbnailUrl
+            }?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+            MediaPreview(
+                imageUrl = imageUrl,
+                filename = item.filename,
+            )
+        }.ifEmpty {
+            listOfNotNull(
+                thumbnailUrl?.takeIf(String::isNotBlank)?.let { imageUrl ->
+                    MediaPreview(
+                        imageUrl = imageUrl,
+                        filename = items.firstOrNull()?.filename,
+                    )
+                },
+            )
+        }
+}
 
 data class MediaItem(
     val id: String,
