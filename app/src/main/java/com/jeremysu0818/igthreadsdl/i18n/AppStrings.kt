@@ -81,6 +81,13 @@ data class AppStrings(
     val settingsThemeDark: String,
     val settingsAutoLaunchTitle: String,
     val settingsAutoLaunchSubtitle: String,
+    val settingsInstagramSessionTitle: String,
+    val settingsInstagramSessionConnected: String,
+    val settingsInstagramSessionDisconnected: String,
+    val settingsInstagramSessionSignIn: String,
+    val settingsInstagramSessionManage: String,
+    val settingsInstagramSessionLogout: String,
+    val settingsInstagramSessionLogoutHint: String,
     val settingsStorageLocationTitle: String,
     val settingsStorageLocationSubtitle: String,
     val settingsStorageLocationAuto: String,
@@ -93,6 +100,13 @@ data class AppStrings(
     val permissionBtnOverlay: String,
     val permissionBtnAccessibility: String,
     val permissionBtnNotifications: String,
+
+    // Instagram Login
+    val instagramLoginTitle: String,
+    val instagramLoginNotice: String,
+    val instagramLoginSuccess: String,
+    val instagramLoginBlockedNavigation: String,
+    val instagramLoginLoadFailed: String,
 
     // Dynamic Messages (MainViewModel / Overlay)
     val msgInvalidClipboard: String,

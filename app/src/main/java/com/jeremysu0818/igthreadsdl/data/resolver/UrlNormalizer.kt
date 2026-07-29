@@ -9,6 +9,12 @@ data class InstagramUrl(
     val type: ManifestType,
 )
 
+data class InstagramStoryUrl(
+    val normalizedUrl: String,
+    val author: String,
+    val storyId: String,
+)
+
 data class ThreadsUrl(
     val normalizedUrl: String,
     val shortcode: String,
@@ -34,7 +40,32 @@ object UrlNormalizer {
     fun extractSupportedUrl(text: String): String? =
         urlRegex.findAll(text)
             .map { it.value.trimEnd(*trailingPunctuation) }
-            .firstOrNull { normalizeInstagram(it) != null || normalizeThreads(it) != null }
+            .firstOrNull {
+                normalizeInstagramStory(it) != null ||
+                    normalizeInstagram(it) != null ||
+                    normalizeThreads(it) != null
+            }
+
+    fun normalizeInstagramStory(input: String): InstagramStoryUrl? {
+        val raw = extractFirstUrl(input) ?: input.trim()
+        val parsed = raw.toHttpUrlOrNull() ?: return null
+        if (parsed.host.lowercase() !in instagramHosts) return null
+
+        val segments = parsed.pathSegments.filter { it.isNotBlank() }
+        if (segments.size < 3 || !segments[0].equals("stories", ignoreCase = true)) return null
+        val author = segments[1]
+            .removePrefix("@")
+            .takeIf { it.matches(Regex("[A-Za-z0-9._]+")) }
+            ?: return null
+        if (author.equals("highlights", ignoreCase = true)) return null
+        val storyId = segments[2].takeIf { it.matches(Regex("[0-9]+")) } ?: return null
+
+        return InstagramStoryUrl(
+            normalizedUrl = "https://www.instagram.com/stories/$author/$storyId/",
+            author = author,
+            storyId = storyId,
+        )
+    }
 
     fun normalizeInstagram(input: String): InstagramUrl? {
         val raw = extractFirstUrl(input) ?: input.trim()
@@ -85,5 +116,7 @@ object UrlNormalizer {
     }
 
     fun isSupported(input: String): Boolean =
-        normalizeInstagram(input) != null || normalizeThreads(input) != null
+        normalizeInstagramStory(input) != null ||
+            normalizeInstagram(input) != null ||
+            normalizeThreads(input) != null
 }

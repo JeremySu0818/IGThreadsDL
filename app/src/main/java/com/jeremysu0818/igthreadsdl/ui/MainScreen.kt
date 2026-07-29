@@ -42,8 +42,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
@@ -153,8 +155,11 @@ fun MainScreen(
     viewModel: MainViewModel,
     permissionStatus: AppPermissionStatus,
     autoLaunchEnabled: Boolean,
+    instagramLoggedIn: Boolean,
     overlayRunning: Boolean,
     onAutoLaunchChange: (Boolean) -> Unit,
+    onInstagramLogin: () -> Unit,
+    onInstagramLogout: () -> Unit,
     onStartOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
     onRequestOverlayPermission: () -> Unit,
@@ -220,7 +225,10 @@ fun MainScreen(
                     currentAppLanguage = state.appLanguage,
                     strings = strings,
                     autoLaunchEnabled = autoLaunchEnabled,
+                    instagramLoggedIn = instagramLoggedIn,
                     onAutoLaunchChange = onAutoLaunchChange,
+                    onInstagramLogin = onInstagramLogin,
+                    onInstagramLogout = onInstagramLogout,
                     onSelectThemeMode = viewModel::selectThemeMode,
                     onSelectAppLanguage = viewModel::selectAppLanguage,
                 )
@@ -564,7 +572,10 @@ private fun SettingsPage(
     currentAppLanguage: AppLanguage,
     strings: AppStrings,
     autoLaunchEnabled: Boolean,
+    instagramLoggedIn: Boolean,
     onAutoLaunchChange: (Boolean) -> Unit,
+    onInstagramLogin: () -> Unit,
+    onInstagramLogout: () -> Unit,
     onSelectThemeMode: (ThemeMode) -> Unit,
     onSelectAppLanguage: (AppLanguage) -> Unit,
 ) {
@@ -608,6 +619,34 @@ private fun SettingsPage(
                         },
                         onClick = { showLanguageDialog = true },
                     )
+                }
+            }
+            item {
+                AiSettingsGroup {
+                    AiSettingsRow(
+                        icon = Icons.Default.AccountCircle,
+                        title = strings.settingsInstagramSessionTitle,
+                        subtitle = if (instagramLoggedIn) {
+                            strings.settingsInstagramSessionConnected
+                        } else {
+                            strings.settingsInstagramSessionDisconnected
+                        },
+                        trailingText = if (instagramLoggedIn) {
+                            strings.settingsInstagramSessionManage
+                        } else {
+                            strings.settingsInstagramSessionSignIn
+                        },
+                        onClick = onInstagramLogin,
+                    )
+                    if (instagramLoggedIn) {
+                        AiSettingsDivider()
+                        AiSettingsRow(
+                            icon = Icons.AutoMirrored.Filled.Logout,
+                            title = strings.settingsInstagramSessionLogout,
+                            subtitle = strings.settingsInstagramSessionLogoutHint,
+                            onClick = onInstagramLogout,
+                        )
+                    }
                 }
             }
             item {

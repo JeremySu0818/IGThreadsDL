@@ -19,6 +19,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.jeremysu0818.igthreadsdl.permissions.AppPermissionStatus
 import com.jeremysu0818.igthreadsdl.permissions.PermissionStatus
+import com.jeremysu0818.igthreadsdl.data.session.InstagramSessionManager
+import com.jeremysu0818.igthreadsdl.ui.InstagramLoginActivity
 import com.jeremysu0818.igthreadsdl.ui.MainScreen
 import com.jeremysu0818.igthreadsdl.ui.MainViewModel
 import com.jeremysu0818.igthreadsdl.ui.StartupPermissionDialog
@@ -40,6 +42,7 @@ class MainActivity : ComponentActivity() {
         ),
     )
     private var autoLaunchEnabled by mutableStateOf(false)
+    private var instagramLoggedIn by mutableStateOf(false)
     private var overlayRunning by mutableStateOf(false)
     private var skipClipboardOnce = false
     private var readClipboardWhenFocused = false
@@ -56,11 +59,18 @@ class MainActivity : ComponentActivity() {
         refreshPermissionStatus()
     }
 
+    private val instagramLoginLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        instagramLoggedIn = InstagramSessionManager.isLoggedIn()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
         autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
+        instagramLoggedIn = InstagramSessionManager.isLoggedIn()
         overlayRunning = PermissionStatus.isOverlayRunning(this)
         getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(overlayPreferenceListener)
@@ -95,6 +105,7 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         permissionStatus = permissionStatus,
                         autoLaunchEnabled = autoLaunchEnabled,
+                        instagramLoggedIn = instagramLoggedIn,
                         overlayRunning = overlayRunning,
                         onAutoLaunchChange = { enabled ->
                             PermissionStatus.setAutoLaunchEnabled(this, enabled)
@@ -104,6 +115,18 @@ class MainActivity : ComponentActivity() {
                                 !PermissionStatus.isAutoLaunchDetectorEnabled(this)
                             ) {
                                 startActivity(PermissionStatus.accessibilitySettingsIntent())
+                            }
+                        },
+                        onInstagramLogin = {
+                            instagramLoginLauncher.launch(
+                                Intent(this, InstagramLoginActivity::class.java),
+                            )
+                        },
+                        onInstagramLogout = {
+                            InstagramSessionManager.clearSession {
+                                runOnUiThread {
+                                    instagramLoggedIn = false
+                                }
                             }
                         },
                         onStartOverlay = {
@@ -152,6 +175,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         refreshPermissionStatus()
         autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
+        instagramLoggedIn = InstagramSessionManager.isLoggedIn()
         overlayRunning = PermissionStatus.isOverlayRunning(this)
         if (permissionStatus.allRequiredGranted && PermissionStatus.shouldRunOverlay(this)) {
             PermissionStatus.startOverlay(this)

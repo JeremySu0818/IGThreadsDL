@@ -7,6 +7,7 @@ enum class MediaPlatform(val value: String) {
 
 enum class ManifestType(val value: String) {
     REEL("reel"),
+    STORY("story"),
     POST("post"),
     PHOTO("photo"),
     VIDEO("video"),

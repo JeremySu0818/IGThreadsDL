@@ -7,6 +7,7 @@ import com.jeremysu0818.igthreadsdl.domain.resolver.ResolverResult
 class ResolverRepository(
     private val resolvers: List<MediaResolver> = listOf(
         ThreadsHtmlResolver(),
+        InstagramStoryResolver(),
         InstagramPublicResolver(),
     ),
 ) {

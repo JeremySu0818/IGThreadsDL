@@ -36,6 +36,26 @@ class UrlNormalizerTest {
     }
 
     @Test
+    fun storyShareUrlExtractsAuthorAndNumericStoryId() {
+        val result = UrlNormalizer.normalizeInstagramStory(
+            "https://instagram.com/stories/public.creator/3950932965561026193/?utm_source=ig_story_item_share",
+        )
+
+        assertEquals("public.creator", result?.author)
+        assertEquals("3950932965561026193", result?.storyId)
+        assertEquals(
+            "https://www.instagram.com/stories/public.creator/3950932965561026193/",
+            result?.normalizedUrl,
+        )
+    }
+
+    @Test
+    fun storyTrayAndHighlightUrlsAreRejected() {
+        assertNull(UrlNormalizer.normalizeInstagramStory("https://instagram.com/stories/public.creator/"))
+        assertNull(UrlNormalizer.normalizeInstagramStory("https://instagram.com/stories/highlights/123/"))
+    }
+
+    @Test
     fun threadsNetIsNormalizedWithoutLosingRequiredQuery() {
         val result = UrlNormalizer.normalizeThreads(
             "https://www.threads.net/@author/post/Code_123?xmt=required#fragment",

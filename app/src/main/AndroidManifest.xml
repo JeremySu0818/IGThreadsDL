@@ -53,6 +53,11 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ui.InstagramLoginActivity"
+            android:exported="false"
+            android:theme="@style/Theme.IGThreadsDL"
+            android:windowSoftInputMode="adjustResize" />
         <service
             android:name=".overlay.OverlayService"
             android:exported="false"
