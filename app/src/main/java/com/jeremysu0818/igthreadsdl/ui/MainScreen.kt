@@ -481,6 +481,8 @@ private fun DownloadPage(
                             ManifestCard(
                                 manifest = manifest,
                                 selectedIds = state.selectedIds,
+                                completedSelectionIds = state.completedSelectionIds,
+                                isDownloading = state.isDownloading,
                                 strings = strings,
                                 onToggleItem = onToggleItem,
                                 onSelectAll = onSelectAll,
@@ -1259,6 +1261,8 @@ private fun UrlInputCard(
 private fun ManifestCard(
     manifest: MediaManifest,
     selectedIds: Set<String>,
+    completedSelectionIds: Set<String>,
+    isDownloading: Boolean,
     strings: AppStrings,
     onToggleItem: (String) -> Unit,
     onSelectAll: (Boolean) -> Unit,
@@ -1337,11 +1341,22 @@ private fun ManifestCard(
 
         Spacer(Modifier.height(14.dp))
 
+        val selectionAlreadyDownloaded = selectedIds.isNotEmpty() && selectedIds == completedSelectionIds
+        val downloadLabel = when {
+            isDownloading -> strings.overlayBtnDownloading
+            selectionAlreadyDownloaded -> strings.downloadStatusSucceeded
+            else -> String.format(strings.manifestDownloadSelectedBtn, selectedIds.size)
+        }
+        val downloadIcon = when {
+            selectionAlreadyDownloaded -> Icons.Default.Check
+            else -> Icons.Default.Download
+        }
+
         HighRadiusButton(
-            text = String.format(strings.manifestDownloadSelectedBtn, selectedIds.size),
-            icon = Icons.Default.Download,
-            primary = true,
-            enabled = selectedIds.isNotEmpty(),
+            text = downloadLabel,
+            icon = downloadIcon,
+            primary = !selectionAlreadyDownloaded,
+            enabled = selectedIds.isNotEmpty() && !isDownloading && !selectionAlreadyDownloaded,
             modifier = Modifier.fillMaxWidth(),
             onClick = onDownload,
         )

@@ -8,9 +8,11 @@ import com.jeremysu0818.igthreadsdl.domain.download.DownloadRecord
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadStatus
 import com.jeremysu0818.igthreadsdl.domain.model.MediaManifest
 import com.jeremysu0818.igthreadsdl.domain.resolver.ResolverResult
+import android.widget.Toast
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -34,6 +36,8 @@ data class MainUiState(
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val input: String = "",
     val isResolving: Boolean = false,
+    val isDownloading: Boolean = false,
+    val completedSelectionIds: Set<String> = emptySet(),
     val manifest: MediaManifest? = null,
     val selectedIds: Set<String> = emptySet(),
     val errorMessage: String? = null,
@@ -157,27 +161,74 @@ class MainViewModel : ViewModel() {
 
     fun downloadSelected() {
         val current = _state.value
+        if (current.isDownloading) return
         val manifest = current.manifest ?: return
         val items = manifest.items.filter { it.id in current.selectedIds }
         if (items.isEmpty()) {
             _state.update { it.copy(errorMessage = it.strings.msgSelectAtLeastOne) }
             return
         }
+        val selectionIds = items.mapTo(linkedSetOf()) { it.id }
+        if (current.completedSelectionIds == selectionIds) return
+
         viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    isDownloading = true,
+                    errorMessage = null,
+                    noticeMessage = null,
+                )
+            }
             val records = downloadRepository.enqueue(manifest, items)
+            val ids = records.map { it.managerId }.toSet()
+            val allFailedImmediately = records.isNotEmpty() &&
+                records.all { it.status == DownloadStatus.FAILED }
+            if (allFailedImmediately) {
+                _state.update {
+                    val s = it.strings
+                    val err = records.firstNotNullOfOrNull { r -> r.statusMessage }
+                        ?: String.format(s.msgDownloadJobFailed, records.size)
+                    it.copy(
+                        isDownloading = false,
+                        errorMessage = err,
+                        noticeMessage = null,
+                        completedSelectionIds = emptySet(),
+                    )
+                }
+                return@launch
+            }
+
             val accepted = records.count { it.status != DownloadStatus.FAILED }
-            val failed = records.size - accepted
+            _state.update {
+                it.copy(
+                    noticeMessage = String.format(it.strings.msgDownloadJobCreated, accepted),
+                )
+            }
+
+            val completed = downloadRepository.records.first { all ->
+                val relevant = all.filter { it.managerId in ids }
+                relevant.size == ids.size && relevant.none { it.isActive }
+            }.filter { it.managerId in ids }
+
+            val failure = completed.firstOrNull { it.status == DownloadStatus.FAILED }
+
+            if (failure == null) {
+                runCatching {
+                    Toast.makeText(
+                        AppGraph.application,
+                        _state.value.strings.downloadStatusSucceeded,
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+
             _state.update {
                 val s = it.strings
-                val msg = when {
-                    accepted > 0 && failed > 0 -> String.format(s.msgDownloadJobsMixed, accepted, failed)
-                    accepted > 0 -> String.format(s.msgDownloadJobCreated, accepted)
-                    else -> String.format(s.msgDownloadJobFailed, failed)
-                }
                 it.copy(
-                    tab = MainTab.QUEUE,
-                    noticeMessage = msg,
-                    errorMessage = null,
+                    isDownloading = false,
+                    errorMessage = failure?.statusMessage,
+                    noticeMessage = if (failure == null) s.downloadStatusSucceeded else null,
+                    completedSelectionIds = if (failure == null) selectionIds else emptySet(),
                 )
             }
         }
@@ -233,6 +284,8 @@ class MainViewModel : ViewModel() {
             _state.update {
                 it.copy(
                     isResolving = true,
+                    isDownloading = false,
+                    completedSelectionIds = emptySet(),
                     manifest = null,
                     selectedIds = emptySet(),
                     errorMessage = null,
