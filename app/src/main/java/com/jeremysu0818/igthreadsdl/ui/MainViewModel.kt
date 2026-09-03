@@ -30,6 +30,10 @@ enum class MainTab {
     SETTINGS,
 }
 
+fun interface UiText {
+    fun asString(strings: AppStrings): String
+}
+
 data class MainUiState(
     val tab: MainTab = MainTab.DOWNLOAD,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -40,8 +44,8 @@ data class MainUiState(
     val completedSelectionIds: Set<String> = emptySet(),
     val manifest: MediaManifest? = null,
     val selectedIds: Set<String> = emptySet(),
-    val errorMessage: String? = null,
-    val noticeMessage: String? = null,
+    val errorMessage: UiText? = null,
+    val noticeMessage: UiText? = null,
     val records: List<DownloadRecord> = emptyList(),
 ) {
     val strings: AppStrings
@@ -122,7 +126,7 @@ class MainViewModel : ViewModel() {
         if (url == null) {
             if (text.isNotBlank() && autoResolve) {
                 _state.update {
-                    it.copy(errorMessage = it.strings.msgInvalidClipboard)
+                    it.copy(errorMessage = UiText { s -> s.msgInvalidClipboard })
                 }
             }
             return
@@ -133,7 +137,7 @@ class MainViewModel : ViewModel() {
             it.copy(
                 tab = MainTab.DOWNLOAD,
                 input = url,
-                noticeMessage = if (autoResolve) it.strings.msgLinkCapturedResolving else null,
+                noticeMessage = if (autoResolve) UiText { s -> s.msgLinkCapturedResolving } else null,
             )
         }
         if (autoResolve) parseText(url)
@@ -165,7 +169,7 @@ class MainViewModel : ViewModel() {
         val manifest = current.manifest ?: return
         val items = manifest.items.filter { it.id in current.selectedIds }
         if (items.isEmpty()) {
-            _state.update { it.copy(errorMessage = it.strings.msgSelectAtLeastOne) }
+            _state.update { it.copy(errorMessage = UiText { s -> s.msgSelectAtLeastOne }) }
             return
         }
         val selectionIds = items.mapTo(linkedSetOf()) { it.id }
@@ -187,10 +191,9 @@ class MainViewModel : ViewModel() {
                 _state.update {
                     val s = it.strings
                     val err = records.firstNotNullOfOrNull { r -> r.statusMessage }
-                        ?: String.format(s.msgDownloadJobFailed, records.size)
                     it.copy(
                         isDownloading = false,
-                        errorMessage = err,
+                        errorMessage = if (err != null) UiText { err } else UiText { strings -> String.format(strings.msgDownloadJobFailed, records.size) },
                         noticeMessage = null,
                         completedSelectionIds = emptySet(),
                     )
@@ -201,7 +204,7 @@ class MainViewModel : ViewModel() {
             val accepted = records.count { it.status != DownloadStatus.FAILED }
             _state.update {
                 it.copy(
-                    noticeMessage = String.format(it.strings.msgDownloadJobCreated, accepted),
+                    noticeMessage = UiText { strings -> String.format(strings.msgDownloadJobCreated, accepted) },
                 )
             }
 
@@ -224,10 +227,11 @@ class MainViewModel : ViewModel() {
 
             _state.update {
                 val s = it.strings
+                val failureMsg = failure?.statusMessage
                 it.copy(
                     isDownloading = false,
-                    errorMessage = failure?.statusMessage,
-                    noticeMessage = if (failure == null) s.downloadStatusSucceeded else null,
+                    errorMessage = failureMsg?.let { msg -> UiText { msg } },
+                    noticeMessage = if (failure == null) UiText { strings -> strings.downloadStatusSucceeded } else null,
                     completedSelectionIds = if (failure == null) selectionIds else emptySet(),
                 )
             }
@@ -244,7 +248,7 @@ class MainViewModel : ViewModel() {
             _state.update {
                 it.copy(
                     tab = MainTab.QUEUE,
-                    noticeMessage = if (record != null) it.strings.msgRetryCreated else it.strings.msgRetryNotFound,
+                    noticeMessage = if (record != null) UiText { s -> s.msgRetryCreated } else UiText { s -> s.msgRetryNotFound },
                 )
             }
         }
@@ -254,20 +258,20 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             val deleted = downloadRepository.delete(managerId)
             _state.update {
-                it.copy(noticeMessage = if (deleted) it.strings.msgDeleteFileAndRecord else it.strings.msgDeleteRecordOnly)
+                it.copy(noticeMessage = if (deleted) UiText { s -> s.msgDeleteFileAndRecord } else UiText { s -> s.msgDeleteRecordOnly })
             }
         }
     }
 
     fun open(record: DownloadRecord) {
         if (!downloadRepository.open(record)) {
-            _state.update { it.copy(errorMessage = it.strings.msgCannotOpenFile) }
+            _state.update { it.copy(errorMessage = UiText { s -> s.msgCannotOpenFile }) }
         }
     }
 
     fun share(record: DownloadRecord) {
         if (!downloadRepository.share(record)) {
-            _state.update { it.copy(errorMessage = it.strings.msgCannotShareFile) }
+            _state.update { it.copy(errorMessage = UiText { s -> s.msgCannotShareFile }) }
         }
     }
 
@@ -277,7 +281,7 @@ class MainViewModel : ViewModel() {
 
     private fun parseText(text: String) {
         if (text.isBlank()) {
-            _state.update { it.copy(errorMessage = it.strings.msgPleasePasteLink) }
+            _state.update { it.copy(errorMessage = UiText { s -> s.msgPleasePasteLink }) }
             return
         }
         viewModelScope.launch {
@@ -301,9 +305,9 @@ class MainViewModel : ViewModel() {
                             selectedIds = result.manifest.items.map { item -> item.id }.toSet(),
                             errorMessage = null,
                             noticeMessage = if (result.manifest.isPartial) {
-                                it.strings.msgPartialManifest
+                                UiText { s -> s.msgPartialManifest }
                             } else {
-                                String.format(it.strings.msgGotMediaItems, result.manifest.items.size)
+                                UiText { s -> String.format(s.msgGotMediaItems, result.manifest.items.size) }
                             },
                         )
                     }
@@ -314,7 +318,7 @@ class MainViewModel : ViewModel() {
                             isResolving = false,
                             manifest = null,
                             selectedIds = emptySet(),
-                            errorMessage = result.error.userMessage(it.strings),
+                            errorMessage = UiText { s -> result.error.userMessage(s) },
                             noticeMessage = null,
                         )
                     }

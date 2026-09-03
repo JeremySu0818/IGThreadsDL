@@ -19,6 +19,7 @@ data class ThreadsUrl(
     val normalizedUrl: String,
     val shortcode: String,
     val author: String?,
+    val isShareLink: Boolean = false,
 )
 
 object UrlNormalizer {
@@ -95,6 +96,17 @@ object UrlNormalizer {
         val parsed = raw.toHttpUrlOrNull() ?: return null
         if (parsed.host.lowercase() !in threadsHosts) return null
         val segments = parsed.pathSegments.filter { it.isNotBlank() }
+        if (segments.size == 2 && segments[0].equals("share", ignoreCase = true)) {
+            val shareCode = segments[1]
+                .takeIf { it.matches(Regex("[A-Za-z0-9_-]+")) }
+                ?: return null
+            return ThreadsUrl(
+                normalizedUrl = "https://www.threads.com/share/$shareCode/",
+                shortcode = shareCode,
+                author = null,
+                isShareLink = true,
+            )
+        }
         val postIndex = segments.indexOfFirst { it.equals("post", ignoreCase = true) }
         if (postIndex < 1 || postIndex + 1 >= segments.size) return null
         val shortcode = segments[postIndex + 1]

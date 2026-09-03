@@ -26,6 +26,30 @@ class ThreadsHtmlResolverTest {
     }
 
     @Test
+    fun shareEndpointIsFetchedDirectlyBeforeResolvingItsPermalink() {
+        val endpoint = resolver.buildEndpoint("https://www.threads.com/share/Bk6vY7HQu-/")
+
+        assertEquals("/share/Bk6vY7HQu-/", endpoint.encodedPath)
+    }
+
+    @Test
+    fun postUrlIsExtractedFromSharePageCanonicalMetadata() {
+        val html = """
+            <html><head>
+              <meta property="al:android:url"
+                    content="https://www.threads.com/&#064;fallback/post/Fallback123" />
+              <link rel="canonical"
+                    href="https://www.threads.com/&#064;bing_sunzhi/post/DczreZyAXtC" />
+            </head></html>
+        """.trimIndent()
+
+        assertEquals(
+            "https://www.threads.com/@bing_sunzhi/post/DczreZyAXtC",
+            resolver.extractPostUrl(html),
+        )
+    }
+
+    @Test
     fun fixtureExtractsAllImageVideoAndDownloadLinksAndFiltersUiAssets() {
         val html = checkNotNull(
             javaClass.classLoader?.getResource("fixtures/threads_download.html"),

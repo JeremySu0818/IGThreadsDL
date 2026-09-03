@@ -283,7 +283,7 @@ private fun BottomNavBar(
 
     Box(
         modifier = modifier
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
             .fillMaxWidth()
             .shadow(
                 elevation = 14.dp,
@@ -351,6 +351,7 @@ private fun BottomNavBar(
                         contentAlignment = Alignment.Center,
                     ) {
                         Row(
+                            modifier = Modifier.padding(horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
@@ -360,31 +361,39 @@ private fun BottomNavBar(
                                 tint = animatedIconTint,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(3.dp))
                             Text(
-                                navItem.label,
+                                text = navItem.label,
                                 color = animatedTextColor,
                                 fontSize = 13.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
                             )
                             if (navItem.count > 0) {
-                                Spacer(Modifier.width(5.dp))
+                                Spacer(Modifier.width(3.dp))
                                 val animatedBadgeBg by animateColorAsState(
                                     targetValue = if (isSelected) MattePrimary else MatteCardBorder,
                                     label = "badge_bg"
                                 )
+                                val badgeText = formatBadgeCount(navItem.count)
                                 Box(
                                     modifier = Modifier
                                         .clip(CircleShape)
                                         .background(animatedBadgeBg)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        .padding(horizontal = 4.5.dp, vertical = 1.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        "${navItem.count}",
+                                        text = badgeText,
                                         color = MatteTextPrimary,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontSize = 9.5.sp,
+                                        lineHeight = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
                                     )
                                 }
                             }
@@ -392,6 +401,22 @@ private fun BottomNavBar(
                     }
                 }
             }
+        }
+    }
+}
+
+private fun formatBadgeCount(count: Int): String {
+    return when {
+        count < 1000 -> count.toString()
+        count < 1_000_000 -> {
+            val k = count / 1000.0
+            val formatted = String.format(Locale.US, "%.1fk", k)
+            if (formatted.endsWith(".0k")) "${count / 1000}k" else formatted
+        }
+        else -> {
+            val m = count / 1_000_000.0
+            val formatted = String.format(Locale.US, "%.1fM", m)
+            if (formatted.endsWith(".0M")) "${count / 1_000_000}M" else formatted
         }
     }
 }
@@ -459,7 +484,7 @@ private fun DownloadPage(
             item {
                 ContentFrame {
                     AiSettingsGroup {
-                        CompactStatusMessage(message, MatteRose)
+                        CompactStatusMessage(message.asString(strings), MatteRose)
                     }
                 }
             }
@@ -468,7 +493,7 @@ private fun DownloadPage(
             item {
                 ContentFrame {
                     AiSettingsGroup {
-                        CompactStatusMessage(message, MatteEmerald)
+                        CompactStatusMessage(message.asString(strings), MatteEmerald)
                     }
                 }
             }

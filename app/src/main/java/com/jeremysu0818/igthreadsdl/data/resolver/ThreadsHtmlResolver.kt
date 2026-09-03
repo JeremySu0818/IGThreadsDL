@@ -30,43 +30,52 @@ class ThreadsHtmlResolver(
     override fun supports(url: String): Boolean = UrlNormalizer.normalizeThreads(url) != null
 
     override suspend fun resolve(url: String): ResolverResult = withContext(Dispatchers.IO) {
-        val normalized = UrlNormalizer.normalizeThreads(url)
+        val initialUrl = UrlNormalizer.normalizeThreads(url)
             ?: return@withContext ResolverResult.Failure(ResolverError.InvalidUrl())
-        val endpoint = buildEndpoint(normalized.normalizedUrl)
-        val request = Request.Builder()
-            .url(endpoint)
-            .get()
-            .header("User-Agent", THREADS_EMBED_USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml")
-            .header("Referer", normalized.normalizedUrl)
-            .build()
 
         try {
-            client.newCall(request).execute().use { response ->
-                val responseText = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    return@withContext ResolverResult.Failure(
-                        ResolverError.fromHttpStatus(
-                            statusCode = response.code,
-                            responseText = responseText,
-                            platform = "threads",
+            var normalized = initialUrl
+            var fetched = fetchPage(
+                endpoint = buildEndpoint(normalized.normalizedUrl),
+                referer = normalized.normalizedUrl,
+            )
+            fetched.failure?.let { return@withContext ResolverResult.Failure(it) }
+
+            if (normalized.isShareLink) {
+                val permalink = extractPostUrl(fetched.body, fetched.finalUrl)
+                    ?: return@withContext ResolverResult.Failure(
+                        ResolverError.HtmlStructureChanged(
+                            "threads",
+                            "share page did not expose a post permalink",
                         ),
                     )
-                }
-                val cookieHeader = responseCookies(response.headers, response.request.url)
-                when (
-                    val parsed = parseHtml(
-                        sourceUrl = normalized.normalizedUrl,
-                        html = responseText,
-                        baseUrl = response.request.url.toString(),
-                        cookieHeader = cookieHeader,
+                normalized = UrlNormalizer.normalizeThreads(permalink)
+                    ?.takeUnless { it.isShareLink }
+                    ?: return@withContext ResolverResult.Failure(
+                        ResolverError.HtmlStructureChanged(
+                            "threads",
+                            "share page permalink was invalid",
+                        ),
                     )
-                ) {
-                    is ResolverResult.Failure -> parsed
-                    is ResolverResult.Success -> {
-                        val enriched = client.enrichMediaMetadata(parsed.manifest.items)
-                        ResolverResult.Success(parsed.manifest.copy(items = enriched))
-                    }
+                fetched = fetchPage(
+                    endpoint = buildEndpoint(normalized.normalizedUrl),
+                    referer = normalized.normalizedUrl,
+                )
+                fetched.failure?.let { return@withContext ResolverResult.Failure(it) }
+            }
+
+            when (
+                val parsed = parseHtml(
+                    sourceUrl = normalized.normalizedUrl,
+                    html = fetched.body,
+                    baseUrl = fetched.finalUrl,
+                    cookieHeader = fetched.cookieHeader,
+                )
+            ) {
+                is ResolverResult.Failure -> parsed
+                is ResolverResult.Success -> {
+                    val enriched = client.enrichMediaMetadata(parsed.manifest.items)
+                    ResolverResult.Success(parsed.manifest.copy(items = enriched))
                 }
             }
         } catch (error: IOException) {
@@ -80,8 +89,47 @@ class ThreadsHtmlResolver(
 
     fun buildEndpoint(sourceUrl: String): HttpUrl =
         UrlNormalizer.normalizeThreads(sourceUrl)
-            ?.let { "$BASE_URL/t/${it.shortcode}/embed".toHttpUrl() }
+            ?.let {
+                if (it.isShareLink) it.normalizedUrl.toHttpUrl()
+                else "$BASE_URL/t/${it.shortcode}/embed".toHttpUrl()
+            }
             ?: sourceUrl.toHttpUrl()
+
+    private fun fetchPage(endpoint: HttpUrl, referer: String): FetchedPage {
+        val request = Request.Builder()
+            .url(endpoint)
+            .get()
+            .header("User-Agent", THREADS_EMBED_USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml")
+            .header("Referer", referer)
+            .build()
+        return client.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            FetchedPage(
+                body = body,
+                finalUrl = response.request.url.toString(),
+                cookieHeader = responseCookies(response.headers, response.request.url),
+                failure = if (response.isSuccessful) null else {
+                    ResolverError.fromHttpStatus(response.code, body, "threads")
+                },
+            )
+        }
+    }
+
+    internal fun extractPostUrl(html: String, baseUrl: String = BASE_URL): String? {
+        val document = Jsoup.parse(html, baseUrl)
+        val candidates = sequenceOf(
+            document.selectFirst("link[rel=canonical][href]")?.absUrl("href"),
+            document.selectFirst("meta[property=og:url][content]")?.attr("content"),
+            document.selectFirst("meta[property=al:android:url][content]")?.attr("content"),
+        )
+        return candidates
+            .filterNotNull()
+            .map(::decodeEscapedHtmlValue)
+            .firstOrNull { candidate ->
+                UrlNormalizer.normalizeThreads(candidate)?.isShareLink == false
+            }
+    }
 
     internal fun parseHtml(
         sourceUrl: String,
@@ -286,6 +334,13 @@ class ThreadsHtmlResolver(
         val url: String,
         val type: MediaItemType,
         val priority: Int,
+    )
+
+    private data class FetchedPage(
+        val body: String,
+        val finalUrl: String,
+        val cookieHeader: String?,
+        val failure: ResolverError?,
     )
 
     companion object {

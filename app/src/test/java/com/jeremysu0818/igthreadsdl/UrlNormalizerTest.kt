@@ -68,4 +68,15 @@ class UrlNormalizerTest {
             result?.normalizedUrl,
         )
     }
+
+    @Test
+    fun threadsShareLinkIsAcceptedAndTrackingParametersAreRemoved() {
+        val result = UrlNormalizer.normalizeThreads(
+            "https://www.threads.com/share/Bk6vY7HQu-/?utm_source=share",
+        )
+
+        assertEquals("Bk6vY7HQu-", result?.shortcode)
+        assertEquals(true, result?.isShareLink)
+        assertEquals("https://www.threads.com/share/Bk6vY7HQu-/", result?.normalizedUrl)
+    }
 }
