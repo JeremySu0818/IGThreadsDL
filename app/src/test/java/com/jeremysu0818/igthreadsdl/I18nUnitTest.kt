@@ -6,7 +6,10 @@ import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
+import org.junit.Before
+import org.json.JSONObject
 import java.io.File
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
@@ -20,25 +23,60 @@ class I18nUnitTest {
         assertTrue(AppLanguage.values().contains(AppLanguage.SYSTEM))
     }
 
+    private fun translationFile(): File =
+        File("src/main/assets/strings.json").takeIf { it.exists() }
+            ?: File("app/src/main/assets/strings.json")
+
+    @Before
+    fun loadCatalog() {
+        translationFile().inputStream().use(LanguageManager::loadTranslations)
+    }
+
     @Test
-    fun testKotlinLocaleFilenamesExactMatch() {
-        val actualDir = if (File("src/main/java/com/jeremysu0818/igthreadsdl/i18n/locales").exists()) {
-            File("src/main/java/com/jeremysu0818/igthreadsdl/i18n/locales")
-        } else {
-            File("app/src/main/java/com/jeremysu0818/igthreadsdl/i18n/locales")
+    fun jsonContainsEveryLanguageAndKey() {
+        val root = JSONObject(translationFile().readText())
+        assertEquals(AppLanguage.supportedLanguages.map { it.code }.toSet(), root.keys().asSequence().toSet())
+        val expectedKeys = AppStrings::class.java.declaredFields
+            .filter { it.type == String::class.java }.map { it.name }.toSet()
+        for (language in AppLanguage.supportedLanguages) {
+            assertEquals(language.code, expectedKeys, root.getJSONObject(language.code).keys().asSequence().toSet())
         }
+    }
 
-        assertTrue("Locale directory must exist", actualDir.exists())
-        val files = actualDir.listFiles { _, name -> name.endsWith(".kt") } ?: emptyArray()
-        val actualNames = files.map { it.name }.toSet()
-        val expectedNames = setOf(
-            "Ar.kt", "Cs.kt", "De.kt", "En.kt", "Es.kt",
-            "Fr.kt", "Hi.kt", "Hu.kt", "Id.kt", "It.kt",
-            "Ja.kt", "Ko.kt", "Nl.kt", "Pl.kt", "PtBr.kt",
-            "Ru.kt", "Tr.kt", "Vi.kt", "ZhCn.kt", "ZhTw.kt"
-        )
+    @Test
+    fun missingBlankOrInvalidTranslationFallsBackToEnglish() {
+        val root = JSONObject(translationFile().readText())
+        root.getJSONObject("ja").remove("navHome")
+        root.getJSONObject("ja").put("navSettings", " ")
+        root.getJSONObject("ja").put("navQueue", 123)
+        root.remove("de")
+        root.toString().byteInputStream().use(LanguageManager::loadTranslations)
+        val english = LanguageManager.getStrings(AppLanguage.EN)
+        val japanese = LanguageManager.getStrings(AppLanguage.JA)
+        assertEquals(english.navHome, japanese.navHome)
+        assertEquals(english.navSettings, japanese.navSettings)
+        assertEquals(english.navQueue, japanese.navQueue)
+        assertEquals(english, LanguageManager.getStrings(AppLanguage.DE))
+        assertEquals(root.getJSONObject("ja").getString("navHistory"), japanese.navHistory)
+    }
 
-        assertEquals("Kotlin locale filenames must match exact expected 20 files", expectedNames, actualNames)
+    @Test
+    fun invalidCatalogDoesNotReplaceLoadedTranslations() {
+        val before = LanguageManager.getStrings(AppLanguage.JA)
+        assertThrows(org.json.JSONException::class.java) {
+            "{}".byteInputStream().use(LanguageManager::loadTranslations)
+        }
+        assertEquals(before, LanguageManager.getStrings(AppLanguage.JA))
+    }
+
+    @Test
+    fun explicitSelectionOverridesDeviceAndChineseScriptOverridesRegion() {
+        assertEquals(AppLanguage.JA, LanguageManager.resolveAppLanguage(AppLanguage.JA, Locale.forLanguageTag("ar")))
+        assertEquals(AppLanguage.ZH_TW, LanguageManager.resolveAppLanguage(AppLanguage.SYSTEM, Locale.forLanguageTag("zh-Hant-CN")))
+        assertEquals(AppLanguage.ZH_CN, LanguageManager.resolveAppLanguage(AppLanguage.SYSTEM, Locale.forLanguageTag("zh-Hans-TW")))
+        assertEquals(AppLanguage.ZH_TW, LanguageManager.resolveAppLanguage(AppLanguage.SYSTEM, Locale.forLanguageTag("zh-HK")))
+        assertEquals(AppLanguage.ZH_CN, LanguageManager.resolveAppLanguage(AppLanguage.SYSTEM, Locale.forLanguageTag("zh-SG")))
+        assertEquals(AppLanguage.PT_BR, AppLanguage.fromCode("pt-BR"))
     }
 
     @Test

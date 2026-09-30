@@ -6,6 +6,4 @@
     <string name="media_kind_video">वीडियो</string>
     <string name="media_kind_image">इमेज</string>
     <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
-    <string name="auto_launch_service_label">IG / Threads ऑटो फ्लोटिंग टूल</string>
-    <string name="auto_launch_service_description">Instagram या Threads के खुलने का पता लगाता है और सेटिंग्स के आधार पर फ्लोटिंग डाउनलोडर लॉन्च करता है।</string>
 </resources>

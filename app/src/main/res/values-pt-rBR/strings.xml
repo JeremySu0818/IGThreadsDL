@@ -6,6 +6,4 @@
     <string name="media_kind_video">Vídeo</string>
     <string name="media_kind_image">Imagem</string>
     <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
-    <string name="auto_launch_service_label">Ferramenta flutuante automática para IG / Threads</string>
-    <string name="auto_launch_service_description">Detecta a abertura do Instagram ou Threads e inicia o baixador flutuante com base nas configurações.</string>
 </resources>

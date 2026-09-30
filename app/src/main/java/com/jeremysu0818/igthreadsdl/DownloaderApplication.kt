@@ -28,6 +28,7 @@ object AppGraph {
     fun initialize(app: DownloaderApplication) {
         if (this::application.isInitialized) return
         this.application = app
+        com.jeremysu0818.igthreadsdl.i18n.LanguageManager.initialize(app)
         resolverRepository = ResolverRepository()
         downloadRepository = AndroidDownloadRepository(app)
         overlayCoordinator = OverlayCoordinator(

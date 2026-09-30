@@ -6,6 +6,4 @@
     <string name="media_kind_video">Vidéo</string>
     <string name="media_kind_image">Image</string>
     <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
-    <string name="auto_launch_service_label">Outil flottant automatique IG / Threads</string>
-    <string name="auto_launch_service_description">Détecte l\'ouverture d\'Instagram ou Threads et lance l\'outil flottant selon vos réglages.</string>
 </resources>

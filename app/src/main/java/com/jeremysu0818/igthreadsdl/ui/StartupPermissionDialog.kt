@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -28,7 +27,6 @@ fun StartupPermissionDialog(
     status: AppPermissionStatus,
     onRequestOverlay: () -> Unit,
     onRequestNotifications: () -> Unit,
-    onRequestAccessibility: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = {},
@@ -44,15 +42,6 @@ fun StartupPermissionDialog(
                         text = strings.permissionBtnOverlay,
                         icon = { Icon(Icons.Default.Tune, contentDescription = null) },
                         onClick = onRequestOverlay,
-                    )
-                }
-                if (!status.accessibility) {
-                    PermissionButton(
-                        text = strings.permissionBtnAccessibility,
-                        icon = {
-                            Icon(Icons.Default.BrightnessAuto, contentDescription = null)
-                        },
-                        onClick = onRequestAccessibility,
                     )
                 }
                 if (!status.notifications) {

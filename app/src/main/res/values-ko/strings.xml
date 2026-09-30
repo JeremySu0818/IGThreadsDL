@@ -6,6 +6,4 @@
     <string name="media_kind_video">동영상</string>
     <string name="media_kind_image">이미지</string>
     <string name="overlay_media_item">%1$d. %2$s · %3$s</string>
-    <string name="auto_launch_service_label">IG / Threads 자동 플로팅 도구</string>
-    <string name="auto_launch_service_description">Instagram 또는 Threads 실행을 감지하여 설정에 따라 플로팅 다운로더를 실행합니다.</string>
 </resources>

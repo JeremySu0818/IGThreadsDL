@@ -103,6 +103,7 @@ import kotlin.math.roundToInt
 
 import com.jeremysu0818.igthreadsdl.i18n.AppStrings
 import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
+import com.jeremysu0818.igthreadsdl.i18n.AppLanguage
 
 private class OverlayLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -174,11 +175,9 @@ private fun CaptionCloseTargetTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun CloseTargetApp(state: CloseTargetState) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val savedLang = LanguageManager.getSavedLanguage(context)
-    val strings = LanguageManager.getStrings(savedLang)
-    val resolvedLang = LanguageManager.resolveAppLanguage(savedLang)
+private fun CloseTargetApp(state: CloseTargetState, language: AppLanguage) {
+    val strings = LanguageManager.getStrings(language)
+    val resolvedLang = LanguageManager.resolveAppLanguage(language)
     val layoutDirection = if (resolvedLang == com.jeremysu0818.igthreadsdl.i18n.AppLanguage.AR) {
         androidx.compose.ui.unit.LayoutDirection.Rtl
     } else {
@@ -271,6 +270,7 @@ class OverlayService : Service() {
     private var closeTargetView: ComposeView? = null
     private var closeTargetLifecycle: OverlayLifecycleOwner? = null
     private val closeTargetState = CloseTargetState()
+    private var closeTargetLanguage by mutableStateOf(AppLanguage.EN)
 
     private val strings: AppStrings
         get() = LanguageManager.getStrings(LanguageManager.getSavedLanguage(this))
@@ -278,6 +278,7 @@ class OverlayService : Service() {
     private val languageSettingsListener =
         android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == LanguageManager.KEY_LANGUAGE) {
+                closeTargetLanguage = LanguageManager.resolveAppLanguage(LanguageManager.getSavedLanguage(this))
                 createNotificationChannel()
                 updateNotification()
                 if (panelView != null) renderPanel()
@@ -286,6 +287,7 @@ class OverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        closeTargetLanguage = LanguageManager.resolveAppLanguage(LanguageManager.getSavedLanguage(this))
         getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
             .edit {
                 putBoolean(PermissionStatus.KEY_OVERLAY_SERVICE_ACTIVE, true)
@@ -339,6 +341,9 @@ class OverlayService : Service() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        closeTargetLanguage = LanguageManager.resolveAppLanguage(LanguageManager.getSavedLanguage(this))
+        createNotificationChannel()
+        updateNotification()
         if (!::windowManager.isInitialized || !::bubbleParams.isInitialized) return
 
         bubbleParams.x = if (bubbleOnRight) {
@@ -432,7 +437,7 @@ class OverlayService : Service() {
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
                 CaptionCloseTargetTheme {
-                    CloseTargetApp(closeTargetState)
+                    CloseTargetApp(closeTargetState, closeTargetLanguage)
                 }
             }
         }
@@ -1190,16 +1195,15 @@ class OverlayService : Service() {
     private fun mediaCheckbox(item: MediaItem, index: Int): View =
         CheckBox(this).apply {
             val kind = if (item.type == MediaItemType.VIDEO) {
-                getString(R.string.media_kind_video)
+                strings.mediaKindVideo
             } else {
-                getString(R.string.media_kind_image)
+                strings.mediaKindImage
             }
-            text = getString(
-                R.string.overlay_media_item,
+            text = String.format(
+                strings.mediaItemTitle,
                 index + 1,
                 kind,
-                formatBytes(item.contentLength),
-            ) + "\n${item.filename}"
+            ) + " · ${formatBytes(item.contentLength)}\n${item.filename}"
             textSize = 13f
             setTextColor(MatteTextPrimaryInt)
             buttonTintList = ColorStateList(

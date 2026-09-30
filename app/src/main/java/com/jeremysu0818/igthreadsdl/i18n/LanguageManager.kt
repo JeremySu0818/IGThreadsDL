@@ -1,12 +1,31 @@
 package com.jeremysu0818.igthreadsdl.i18n
 
 import android.content.Context
-import com.jeremysu0818.igthreadsdl.i18n.locales.*
+import java.io.InputStream
+import org.json.JSONObject
 import java.util.Locale
 
 object LanguageManager {
     const val PREFERENCES_NAME = "app_settings"
     const val KEY_LANGUAGE = "app_language"
+
+    @Volatile
+    private var catalog: Map<AppLanguage, AppStrings> = emptyMap()
+
+    /** Load the bundled JSON before any UI, resolver, or service requests text. */
+    fun initialize(context: Context) {
+        context.assets.open("strings.json").use(::loadTranslations)
+    }
+
+    internal fun loadTranslations(input: InputStream) {
+        val root = JSONObject(input.bufferedReader(Charsets.UTF_8).readText())
+        val english = root.getJSONObject(AppLanguage.EN.code)
+        // Publish only after every language has been decoded, so readers never see
+        // a partially loaded catalog. Missing translated keys fall back to English.
+        catalog = AppLanguage.supportedLanguages.associateWith { language ->
+            AppStrings.fromJson(root.optJSONObject(language.code) ?: english, english)
+        }
+    }
 
     fun getSavedLanguage(context: Context): AppLanguage {
         val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -27,11 +46,7 @@ object LanguageManager {
 
         val lang = deviceLocale.language.lowercase(Locale.US)
         val country = deviceLocale.country.uppercase(Locale.US)
-        val script = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            deviceLocale.script
-        } else {
-            ""
-        }
+        val script = deviceLocale.script
 
         return when (lang) {
             "ar" -> AppLanguage.AR
@@ -53,10 +68,11 @@ object LanguageManager {
             "tr" -> AppLanguage.TR
             "vi" -> AppLanguage.VI
             "zh" -> when {
-                script.equals("Hant", ignoreCase = true) || country in setOf("TW", "HK", "MO") ->
+                script.equals("Hant", ignoreCase = true) ->
                     AppLanguage.ZH_TW
-                script.equals("Hans", ignoreCase = true) || country in setOf("CN", "SG") ->
+                script.equals("Hans", ignoreCase = true) ->
                     AppLanguage.ZH_CN
+                country in setOf("CN", "SG") -> AppLanguage.ZH_CN
                 else -> AppLanguage.ZH_TW
             }
             else -> AppLanguage.EN
@@ -68,28 +84,8 @@ object LanguageManager {
         deviceLocale: Locale = Locale.getDefault(),
     ): AppStrings {
         val resolved = resolveAppLanguage(selected, deviceLocale)
-        return when (resolved) {
-            AppLanguage.AR -> stringsAr
-            AppLanguage.CS -> stringsCs
-            AppLanguage.DE -> stringsDe
-            AppLanguage.EN -> stringsEn
-            AppLanguage.ES -> stringsEs
-            AppLanguage.FR -> stringsFr
-            AppLanguage.HI -> stringsHi
-            AppLanguage.HU -> stringsHu
-            AppLanguage.ID -> stringsId
-            AppLanguage.IT -> stringsIt
-            AppLanguage.JA -> stringsJa
-            AppLanguage.KO -> stringsKo
-            AppLanguage.NL -> stringsNl
-            AppLanguage.PL -> stringsPl
-            AppLanguage.PT_BR -> stringsPtBr
-            AppLanguage.RU -> stringsRu
-            AppLanguage.TR -> stringsTr
-            AppLanguage.VI -> stringsVi
-            AppLanguage.ZH_CN -> stringsZhCn
-            AppLanguage.ZH_TW -> stringsZhTw
-            AppLanguage.SYSTEM -> stringsEn
+        return checkNotNull(catalog[resolved]) {
+            "LanguageManager.initialize must be called before requesting translations"
         }
     }
 }

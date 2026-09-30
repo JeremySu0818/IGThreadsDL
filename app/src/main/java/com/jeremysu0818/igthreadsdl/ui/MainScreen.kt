@@ -42,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BrightnessAuto
@@ -55,7 +56,6 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
@@ -154,10 +154,9 @@ private data class NavItem(
 fun MainScreen(
     viewModel: MainViewModel,
     permissionStatus: AppPermissionStatus,
-    autoLaunchEnabled: Boolean,
     instagramLoggedIn: Boolean,
     overlayRunning: Boolean,
-    onAutoLaunchChange: (Boolean) -> Unit,
+    onAddQuickSettingsTile: () -> Unit,
     onInstagramLogin: () -> Unit,
     onInstagramLogout: () -> Unit,
     onStartOverlay: () -> Unit,
@@ -224,9 +223,8 @@ fun MainScreen(
                     currentThemeMode = state.themeMode,
                     currentAppLanguage = state.appLanguage,
                     strings = strings,
-                    autoLaunchEnabled = autoLaunchEnabled,
                     instagramLoggedIn = instagramLoggedIn,
-                    onAutoLaunchChange = onAutoLaunchChange,
+                    onAddQuickSettingsTile = onAddQuickSettingsTile,
                     onInstagramLogin = onInstagramLogin,
                     onInstagramLogout = onInstagramLogout,
                     onSelectThemeMode = viewModel::selectThemeMode,
@@ -598,9 +596,8 @@ private fun SettingsPage(
     currentThemeMode: ThemeMode,
     currentAppLanguage: AppLanguage,
     strings: AppStrings,
-    autoLaunchEnabled: Boolean,
     instagramLoggedIn: Boolean,
-    onAutoLaunchChange: (Boolean) -> Unit,
+    onAddQuickSettingsTile: () -> Unit,
     onInstagramLogin: () -> Unit,
     onInstagramLogout: () -> Unit,
     onSelectThemeMode: (ThemeMode) -> Unit,
@@ -640,7 +637,7 @@ private fun SettingsPage(
                         icon = Icons.Default.Language,
                         title = strings.settingsLanguageTitle,
                         subtitle = if (currentAppLanguage == AppLanguage.SYSTEM) {
-                            "${strings.settingsThemeSystem} (${currentAppLanguage.endonym})"
+                            strings.settingsThemeSystem
                         } else {
                             currentAppLanguage.endonym
                         },
@@ -678,10 +675,9 @@ private fun SettingsPage(
             }
             item {
                 AiSettingsGroup {
-                    AutoLaunchSettingsRow(
+                    QuickSettingsTileRow(
                         strings = strings,
-                        checked = autoLaunchEnabled,
-                        onCheckedChange = onAutoLaunchChange,
+                        onClick = onAddQuickSettingsTile,
                     )
                 }
             }
@@ -734,16 +730,15 @@ private fun SettingsPage(
 }
 
 @Composable
-private fun AutoLaunchSettingsRow(
+private fun QuickSettingsTileRow(
     strings: AppStrings,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(82.dp)
-            .clickable { onCheckedChange(!checked) }
+            .clickable(onClick = onClick)
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -756,7 +751,7 @@ private fun AutoLaunchSettingsRow(
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = strings.settingsAutoLaunchTitle,
+                text = strings.settingsQuickSettingsTileTitle,
                 color = ContentTextPrimary,
                 fontSize = 17.sp,
                 lineHeight = 22.sp,
@@ -765,7 +760,7 @@ private fun AutoLaunchSettingsRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = strings.settingsAutoLaunchSubtitle,
+                text = strings.settingsQuickSettingsTileSubtitle,
                 color = ContentTextMuted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
@@ -774,9 +769,10 @@ private fun AutoLaunchSettingsRow(
             )
         }
         Spacer(Modifier.width(12.dp))
-        ReferenceSwitch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = ContentTextMuted,
         )
     }
 }
@@ -1074,7 +1070,7 @@ private fun LanguageDialog(
                 ) {
                     itemsIndexed(AppLanguage.values()) { _, language ->
                         val label = if (language == AppLanguage.SYSTEM) {
-                            "${strings.settingsThemeSystem} (${language.endonym})"
+                            strings.settingsThemeSystem
                         } else {
                             language.endonym
                         }

@@ -1,12 +1,16 @@
 package com.jeremysu0818.igthreadsdl
 
 import android.Manifest
+import android.app.StatusBarManager
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,6 +23,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.jeremysu0818.igthreadsdl.permissions.AppPermissionStatus
 import com.jeremysu0818.igthreadsdl.permissions.PermissionStatus
+import com.jeremysu0818.igthreadsdl.quicksettings.OverlayTileService
 import com.jeremysu0818.igthreadsdl.data.session.InstagramSessionManager
 import com.jeremysu0818.igthreadsdl.ui.InstagramLoginActivity
 import com.jeremysu0818.igthreadsdl.ui.MainScreen
@@ -38,10 +43,8 @@ class MainActivity : ComponentActivity() {
         AppPermissionStatus(
             overlay = false,
             notifications = false,
-            accessibility = false,
         ),
     )
-    private var autoLaunchEnabled by mutableStateOf(false)
     private var instagramLoggedIn by mutableStateOf(false)
     private var overlayRunning by mutableStateOf(false)
     private var skipClipboardOnce = false
@@ -69,7 +72,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
-        autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
         instagramLoggedIn = InstagramSessionManager.isLoggedIn()
         overlayRunning = PermissionStatus.isOverlayRunning(this)
         getSharedPreferences(PermissionStatus.OVERLAY_PREFERENCES, Context.MODE_PRIVATE)
@@ -104,19 +106,9 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         viewModel = viewModel,
                         permissionStatus = permissionStatus,
-                        autoLaunchEnabled = autoLaunchEnabled,
                         instagramLoggedIn = instagramLoggedIn,
                         overlayRunning = overlayRunning,
-                        onAutoLaunchChange = { enabled ->
-                            PermissionStatus.setAutoLaunchEnabled(this, enabled)
-                            autoLaunchEnabled = enabled
-                            if (
-                                enabled &&
-                                !PermissionStatus.isAutoLaunchDetectorEnabled(this)
-                            ) {
-                                startActivity(PermissionStatus.accessibilitySettingsIntent())
-                            }
-                        },
+                        onAddQuickSettingsTile = ::addQuickSettingsTile,
                         onInstagramLogin = {
                             instagramLoginLauncher.launch(
                                 Intent(this, InstagramLoginActivity::class.java),
@@ -155,9 +147,6 @@ class MainActivity : ComponentActivity() {
                                 startActivity(PermissionStatus.overlaySettingsIntent(this))
                             },
                             onRequestNotifications = ::requestNotificationPermission,
-                            onRequestAccessibility = {
-                                startActivity(PermissionStatus.accessibilitySettingsIntent())
-                            },
                         )
                     }
                 }
@@ -174,7 +163,6 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshPermissionStatus()
-        autoLaunchEnabled = PermissionStatus.isAutoLaunchEnabled(this)
         instagramLoggedIn = InstagramSessionManager.isLoggedIn()
         overlayRunning = PermissionStatus.isOverlayRunning(this)
         if (permissionStatus.allRequiredGranted && PermissionStatus.shouldRunOverlay(this)) {
@@ -244,11 +232,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun addQuickSettingsTile() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getSystemService(StatusBarManager::class.java).requestAddTileService(
+                ComponentName(this, OverlayTileService::class.java),
+                viewModel.state.value.strings.appName,
+                Icon.createWithResource(this, R.drawable.ic_notification_download),
+                mainExecutor,
+            ) {}
+        } else {
+            val quickSettingsIntent = Intent(ACTION_QUICK_SETTINGS_SETTINGS)
+            startActivity(
+                if (quickSettingsIntent.resolveActivity(packageManager) != null) {
+                    quickSettingsIntent
+                } else {
+                    Intent(Settings.ACTION_SETTINGS)
+                },
+            )
+        }
+    }
+
     private fun refreshPermissionStatus() {
         permissionStatus = PermissionStatus.current(this)
     }
 
     companion object {
         const val EXTRA_SOURCE_URL = "source_url"
+        private const val ACTION_QUICK_SETTINGS_SETTINGS =
+            "android.settings.QUICK_SETTINGS_SETTINGS"
     }
 }
