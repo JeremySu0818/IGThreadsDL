@@ -6,6 +6,7 @@ import com.jeremysu0818.igthreadsdl.AppGraph
 import com.jeremysu0818.igthreadsdl.data.resolver.UrlNormalizer
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadRecord
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadStatus
+import com.jeremysu0818.igthreadsdl.domain.download.allSucceeded
 import com.jeremysu0818.igthreadsdl.domain.model.MediaManifest
 import com.jeremysu0818.igthreadsdl.domain.resolver.ResolverResult
 import android.widget.Toast
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 import android.content.Context
 import com.jeremysu0818.igthreadsdl.ui.theme.ThemeMode
@@ -47,6 +49,7 @@ data class MainUiState(
     val errorMessage: UiText? = null,
     val noticeMessage: UiText? = null,
     val records: List<DownloadRecord> = emptyList(),
+    val historyScrollTargetId: Long? = null,
 ) {
     val strings: AppStrings
         get() = LanguageManager.getStrings(appLanguage)
@@ -58,6 +61,8 @@ class MainViewModel : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
     private var lastAutomaticUrl: String? = null
+    private val retryNavigation = RetryNavigation()
+    private var retryReturnJob: Job? = null
 
     init {
         loadThemeMode()
@@ -101,7 +106,17 @@ class MainViewModel : ViewModel() {
     }
 
     fun selectTab(tab: MainTab) {
-        _state.update { it.copy(tab = tab) }
+        if (tab != MainTab.QUEUE) {
+            retryNavigation.leaveQueue()
+            retryReturnJob?.cancel()
+        }
+        _state.update { it.copy(tab = tab, historyScrollTargetId = null) }
+    }
+
+    fun historyScrollHandled(managerId: Long) {
+        _state.update {
+            if (it.historyScrollTargetId == managerId) it.copy(historyScrollTargetId = null) else it
+        }
     }
 
     fun updateInput(value: String) {
@@ -133,9 +148,12 @@ class MainViewModel : ViewModel() {
         }
         if (autoResolve && url == lastAutomaticUrl) return
         lastAutomaticUrl = if (autoResolve) url else lastAutomaticUrl
+        retryNavigation.leaveQueue()
+        retryReturnJob?.cancel()
         _state.update {
             it.copy(
                 tab = MainTab.DOWNLOAD,
+                historyScrollTargetId = null,
                 input = url,
                 noticeMessage = if (autoResolve) UiText { s -> s.msgLinkCapturedResolving } else null,
             )
@@ -209,13 +227,13 @@ class MainViewModel : ViewModel() {
             }
 
             val completed = downloadRepository.records.first { all ->
-                val relevant = all.filter { it.managerId in ids }
-                relevant.size == ids.size && relevant.none { it.isActive }
+                all.none { it.managerId in ids && it.isActive }
             }.filter { it.managerId in ids }
 
             val failure = completed.firstOrNull { it.status == DownloadStatus.FAILED }
+            val succeeded = completed.allSucceeded(ids)
 
-            if (failure == null) {
+            if (succeeded) {
                 runCatching {
                     Toast.makeText(
                         AppGraph.application,
@@ -231,8 +249,8 @@ class MainViewModel : ViewModel() {
                 it.copy(
                     isDownloading = false,
                     errorMessage = failureMsg?.let { msg -> UiText { msg } },
-                    noticeMessage = if (failure == null) UiText { strings -> strings.downloadStatusSucceeded } else null,
-                    completedSelectionIds = if (failure == null) selectionIds else emptySet(),
+                    noticeMessage = if (succeeded) UiText { strings -> strings.downloadStatusSucceeded } else null,
+                    completedSelectionIds = if (succeeded) selectionIds else emptySet(),
                 )
             }
         }
@@ -243,13 +261,36 @@ class MainViewModel : ViewModel() {
     }
 
     fun retry(managerId: Long) {
+        retryReturnJob?.cancel()
+        val token = retryNavigation.begin()
         viewModelScope.launch {
             val record = downloadRepository.retry(managerId)
+            if (!retryNavigation.isCurrent(token)) return@launch
+            if (record == null) {
+                _state.update { it.copy(noticeMessage = UiText { s -> s.msgRetryNotFound }) }
+                return@launch
+            }
             _state.update {
                 it.copy(
                     tab = MainTab.QUEUE,
-                    noticeMessage = if (record != null) UiText { s -> s.msgRetryCreated } else UiText { s -> s.msgRetryNotFound },
+                    historyScrollTargetId = null,
+                    noticeMessage = UiText { s -> s.msgRetryCreated },
                 )
+            }
+            retryReturnJob = viewModelScope.launch {
+                val finishedRecords = downloadRepository.records.first { all ->
+                    all.none { it.managerId == record.managerId && it.isActive }
+                }
+                _state.update { current ->
+                    val targetId = retryNavigation.historyTargetId(
+                        token, current.tab, managerId, record.managerId, finishedRecords,
+                    )
+                    if (targetId != null) {
+                        current.copy(tab = MainTab.HISTORY, historyScrollTargetId = targetId)
+                    } else {
+                        current
+                    }
+                }
             }
         }
     }

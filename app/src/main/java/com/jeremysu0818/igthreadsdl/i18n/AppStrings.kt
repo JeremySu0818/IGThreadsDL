@@ -160,6 +160,8 @@ data class AppStrings(
 
     // Download Repository Messages & Errors
     val downloadHlsNotSupported: String,
+    val downloadFailureUnavailable: String,
+    val downloadFailureServer: String,
     val downloadMsgCancelled: String,
     val downloadMsgEmptyFile: String,
     val downloadDescriptionFormat: String,
@@ -171,6 +173,7 @@ data class AppStrings(
     val downloadStatusPausedNetwork: String,
     val downloadStatusPausedWifi: String,
     val downloadStatusPausedRetry: String,
+    val downloadRetrying: String,
     val downloadStatusPausedDefault: String,
     val downloadStatusSucceeded: String,
     val downloadStatusFailedSpace: String,
@@ -326,6 +329,8 @@ data class AppStrings(
                 overlayBtnOpenInApp = text("overlayBtnOpenInApp"),
                 overlayAccessibilityDescription = text("overlayAccessibilityDescription"),
                 downloadHlsNotSupported = text("downloadHlsNotSupported"),
+                downloadFailureUnavailable = text("downloadFailureUnavailable"),
+                downloadFailureServer = text("downloadFailureServer"),
                 downloadMsgCancelled = text("downloadMsgCancelled"),
                 downloadMsgEmptyFile = text("downloadMsgEmptyFile"),
                 downloadDescriptionFormat = text("downloadDescriptionFormat"),
@@ -337,6 +342,7 @@ data class AppStrings(
                 downloadStatusPausedNetwork = text("downloadStatusPausedNetwork"),
                 downloadStatusPausedWifi = text("downloadStatusPausedWifi"),
                 downloadStatusPausedRetry = text("downloadStatusPausedRetry"),
+                downloadRetrying = text("downloadRetrying"),
                 downloadStatusPausedDefault = text("downloadStatusPausedDefault"),
                 downloadStatusSucceeded = text("downloadStatusSucceeded"),
                 downloadStatusFailedSpace = text("downloadStatusFailedSpace"),

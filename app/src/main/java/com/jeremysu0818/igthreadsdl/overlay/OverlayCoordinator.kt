@@ -4,6 +4,7 @@ import com.jeremysu0818.igthreadsdl.AppGraph
 import com.jeremysu0818.igthreadsdl.data.download.AndroidDownloadRepository
 import com.jeremysu0818.igthreadsdl.data.resolver.ResolverRepository
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadStatus
+import com.jeremysu0818.igthreadsdl.domain.download.allSucceeded
 import com.jeremysu0818.igthreadsdl.domain.model.MediaManifest
 import com.jeremysu0818.igthreadsdl.domain.resolver.ResolverResult
 import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
@@ -145,16 +146,16 @@ class OverlayCoordinator(
                 )
             }
             val completed = downloadRepository.records.first { all ->
-                val relevant = all.filter { it.managerId in ids }
-                relevant.size == ids.size && relevant.none { it.isActive }
+                all.none { it.managerId in ids && it.isActive }
             }.filter { it.managerId in ids }
             val failure = completed.firstOrNull { it.status == DownloadStatus.FAILED }
+            val succeeded = completed.allSucceeded(ids)
             _state.update {
                 it.copy(
                     phase = if (failure == null) OverlayPhase.READY else OverlayPhase.ERROR,
                     errorMessage = failure?.statusMessage,
                     activeDownloadIds = emptySet(),
-                    completedSelectionIds = if (failure == null) selectionIds else emptySet(),
+                    completedSelectionIds = if (succeeded) selectionIds else emptySet(),
                 )
             }
         }

@@ -3,6 +3,10 @@ package com.jeremysu0818.igthreadsdl.domain.download
 import com.jeremysu0818.igthreadsdl.domain.model.MediaItemType
 import com.jeremysu0818.igthreadsdl.domain.model.MediaPlatform
 
+/** A cancelled, removed, or missing job must never count as a successful batch. */
+fun List<DownloadRecord>.allSucceeded(ids: Set<Long>): Boolean =
+    ids.isNotEmpty() && ids.all { id -> any { it.managerId == id && it.status == DownloadStatus.SUCCEEDED } }
+
 enum class DownloadStatus {
     QUEUED,
     RUNNING,

@@ -24,7 +24,15 @@ import com.jeremysu0818.igthreadsdl.domain.model.MediaItem
 import com.jeremysu0818.igthreadsdl.domain.model.MediaItemType
 import com.jeremysu0818.igthreadsdl.domain.model.MediaManifest
 import com.jeremysu0818.igthreadsdl.domain.model.MediaPlatform
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
+import okhttp3.Call
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -40,6 +48,7 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 
+import com.jeremysu0818.igthreadsdl.i18n.AppLanguage
 import com.jeremysu0818.igthreadsdl.i18n.AppStrings
 import com.jeremysu0818.igthreadsdl.i18n.LanguageManager
 
@@ -52,7 +61,26 @@ class AndroidDownloadRepository(
     private val preferences =
         appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val initialRecords = loadRecords()
+    private val imageClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(120, TimeUnit.SECONDS)
+        .build()
+    private val imageCalls = ConcurrentHashMap<Long, Call>()
+    private val recordLock = Any()
+    private val initialRecords = loadRecords().map { record ->
+        when {
+            record.managerId < 0 && record.isActive ->
+                record.copy(status = DownloadStatus.FAILED, statusMessage = strings.downloadStatusFailedFileErr)
+            record.status == DownloadStatus.FAILED && record.statusMessage != null ->
+                record.copy(statusMessage = cleanLegacyDownloadFailure(
+                    record.statusMessage,
+                    AppLanguage.supportedLanguages.map { LanguageManager.getStrings(it) },
+                    strings,
+                ))
+            else -> record
+        }
+    }
     private val localId = AtomicLong(
         (initialRecords.minOfOrNull { it.managerId } ?: 0L)
             .coerceAtMost(0L) - 1L,
@@ -106,18 +134,31 @@ class AndroidDownloadRepository(
                 enqueueOne(manifest, item, filename)
             }
         }
-        updateRecords(_records.value + created)
+        updateRecords { it + created }
+        created.filter { it.managerId < 0 && it.isActive }.forEach { record ->
+            scope.launch { downloadImage(record) }
+        }
         created
     }
 
     override suspend fun cancel(managerId: Long) = withContext(Dispatchers.IO) {
-        if (managerId > 0) downloadManager.remove(managerId)
-        replaceRecord(managerId) {
-            it.copy(
-                status = DownloadStatus.CANCELLED,
-                statusMessage = strings.downloadMsgCancelled,
-                updatedAt = System.currentTimeMillis(),
-            )
+        val cancelled = synchronized(recordLock) {
+            if (_records.value.none { it.managerId == managerId && it.isActive }) {
+                false
+            } else {
+                replaceRecord(managerId) {
+                    it.copy(
+                        status = DownloadStatus.CANCELLED,
+                        statusMessage = strings.downloadMsgCancelled,
+                        updatedAt = System.currentTimeMillis(),
+                    )
+                }
+                true
+            }
+        }
+        if (cancelled) {
+            if (managerId > 0) downloadManager.remove(managerId)
+            imageCalls.remove(managerId)?.cancel()
         }
     }
 
@@ -155,8 +196,12 @@ class AndroidDownloadRepository(
     }
 
     override suspend fun delete(managerId: Long): Boolean = withContext(Dispatchers.IO) {
-        val record = _records.value.firstOrNull { it.managerId == managerId }
-            ?: return@withContext false
+        val record = synchronized(recordLock) {
+            _records.value.firstOrNull { it.managerId == managerId }?.also {
+                updateRecords { all -> all.filterNot { it.managerId == managerId } }
+            }
+        } ?: return@withContext false
+        imageCalls.remove(managerId)?.cancel()
         val removed = if (record.managerId > 0) {
             runCatching { downloadManager.remove(record.managerId) >= 0 }.getOrDefault(false)
         } else {
@@ -166,7 +211,6 @@ class AndroidDownloadRepository(
                 }.getOrDefault(false)
             } ?: true
         }
-        updateRecords(_records.value.filterNot { it.managerId == managerId })
         removed
     }
 
@@ -186,7 +230,8 @@ class AndroidDownloadRepository(
         if (updates.isEmpty()) return@withContext
 
         val now = System.currentTimeMillis()
-        val changed = _records.value.map { record ->
+        updateRecords { current -> current.map { record ->
+            if (record.status == DownloadStatus.CANCELLED) return@map record
             val snapshot = updates[record.managerId] ?: return@map record
             val uri = if (snapshot.status == DownloadStatus.SUCCEEDED) {
                 runCatching {
@@ -213,7 +258,7 @@ class AndroidDownloadRepository(
                 },
             )
         }
-        if (changed != _records.value) updateRecords(changed)
+        }
     }
 
     override fun open(record: DownloadRecord): Boolean {
@@ -243,8 +288,156 @@ class AndroidDownloadRepository(
         item: MediaItem,
         filename: String,
     ): DownloadRecord =
-        cachedImageRecord(manifest, item, filename)
-            ?: enqueueWithDownloadManager(manifest, item, filename)
+        if (item.type == MediaItemType.IMAGE) {
+            cachedImageRecord(manifest, item, filename)
+                ?: failedRecord(manifest, item, filename, strings.downloadStatusQueued).copy(
+                    status = DownloadStatus.QUEUED,
+                )
+        } else {
+            enqueueWithDownloadManager(manifest, item, filename)
+        }
+
+    private suspend fun downloadImage(record: DownloadRecord) {
+        try {
+            retryImageTransfer(
+                onRetry = { number, waitMillis ->
+                    waitForImageRetry(record.managerId, number, waitMillis)
+                },
+            ) {
+                downloadImageOnce(record)
+            }
+        } catch (_: CancellationException) {
+            // Cancellation and deletion have already updated the record.
+        } catch (error: Exception) {
+            replaceRecord(record.managerId) {
+                if (it.isActive) it.copy(
+                    status = DownloadStatus.FAILED,
+                    statusMessage = downloadFailureMessage(error, strings),
+                    updatedAt = System.currentTimeMillis(),
+                ) else it
+            }
+        }
+    }
+
+    private suspend fun waitForImageRetry(managerId: Long, number: Int, waitMillis: Long): Boolean {
+        val scheduled = synchronized(recordLock) {
+            if (_records.value.none { it.managerId == managerId && it.isActive }) {
+                false
+            } else {
+                replaceRecord(managerId) {
+                    it.copy(
+                        status = DownloadStatus.PAUSED,
+                        statusMessage = String.format(strings.downloadRetrying, number, MAX_IMAGE_RETRIES),
+                        bytesDownloaded = 0,
+                        updatedAt = System.currentTimeMillis(),
+                    )
+                }
+                true
+            }
+        }
+        if (!scheduled) return false
+
+        // Observe the record while waiting so cancelling or deleting it stops retries immediately.
+        return awaitImageRetryWindow(records, managerId, waitMillis)
+    }
+
+    private suspend fun downloadImageOnce(record: DownloadRecord) {
+        val resolver = appContext.contentResolver
+        val imageCall = imageClient.newCall(
+            Request.Builder().url(record.downloadUrl).apply {
+                record.requestHeaders.forEach { (name, value) ->
+                    if (name.isNotBlank() && value.isNotBlank()) header(name, value)
+                }
+            }.build(),
+        )
+        // Register and check the record under the same lock as cancellation.
+        val registered = synchronized(recordLock) {
+            if (_records.value.none { it.managerId == record.managerId && it.isActive }) {
+                false
+            } else {
+                imageCalls[record.managerId] = imageCall
+                replaceRecord(record.managerId) {
+                    it.copy(
+                        status = DownloadStatus.RUNNING,
+                        statusMessage = strings.downloadStatusRunning,
+                        bytesDownloaded = 0,
+                        updatedAt = System.currentTimeMillis(),
+                    )
+                }
+                true
+            }
+        }
+        if (!registered) {
+            imageCall.cancel()
+            throw CancellationException("Download cancelled")
+        }
+
+        var destination: Uri? = null
+        try {
+            val jobContext = currentCoroutineContext()
+            val bytes = imageCall.execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw DownloadHttpException(
+                        response.code,
+                        parseRetryAfterMillis(response.header("Retry-After")),
+                    )
+                }
+                destination = storageOperation {
+                    resolver.insert(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                        ContentValues().apply {
+                            put(MediaStore.MediaColumns.DISPLAY_NAME, record.filename)
+                            record.mimeType?.let { put(MediaStore.MediaColumns.MIME_TYPE, it) }
+                            put(MediaStore.MediaColumns.RELATIVE_PATH,
+                                "${Environment.DIRECTORY_DOWNLOADS}/$DOWNLOAD_FOLDER")
+                            put(MediaStore.MediaColumns.IS_PENDING, 1)
+                        },
+                    ) ?: error("Unable to create image destination")
+                }
+                val output = storageOperation {
+                    resolver.openOutputStream(checkNotNull(destination), "w")
+                        ?: error("Unable to open image destination")
+                }
+                storageOutputStream(output).use { output ->
+                    var lastUpdate = 0L
+                    copyImageResponse(response, output) { bytes, total ->
+                        jobContext.ensureActive()
+                        if (imageCall.isCanceled()) throw CancellationException()
+                        val now = System.currentTimeMillis()
+                        if (now - lastUpdate >= 500) {
+                            replaceRecord(record.managerId) {
+                                if (it.isActive) it.copy(bytesDownloaded = bytes,
+                                    totalBytes = total, updatedAt = now) else it
+                            }
+                            lastUpdate = now
+                        }
+                    }
+                }
+            }
+            synchronized(recordLock) {
+                if (_records.value.none { it.managerId == record.managerId && it.isActive }) {
+                    throw CancellationException()
+                }
+                storageOperation {
+                    check(resolver.update(checkNotNull(destination), ContentValues().apply {
+                        put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    }, null, null) > 0)
+                }
+                replaceRecord(record.managerId) {
+                    it.copy(status = DownloadStatus.SUCCEEDED,
+                        statusMessage = strings.downloadStatusSucceeded,
+                        bytesDownloaded = bytes, totalBytes = bytes,
+                        localUri = checkNotNull(destination).toString(),
+                        updatedAt = System.currentTimeMillis())
+                }
+                destination = null
+            }
+        } finally {
+            imageCalls.remove(record.managerId, imageCall)
+            imageCall.cancel()
+            destination?.let { uri -> runCatching { resolver.delete(uri, null, null) } }
+        }
+    }
 
     @OptIn(ExperimentalCoilApi::class)
     private fun cachedImageRecord(
@@ -369,12 +562,12 @@ class AndroidDownloadRepository(
                 createdAt = now,
                 updatedAt = now,
             )
-        } catch (error: SecurityException) {
-            failedRecord(manifest, item, filename, String.format(strings.downloadErrPermission, error.message.orEmpty()))
-        } catch (error: IllegalStateException) {
-            failedRecord(manifest, item, filename, String.format(strings.downloadErrStorage, error.message.orEmpty()))
-        } catch (error: RuntimeException) {
-            failedRecord(manifest, item, filename, String.format(strings.downloadErrCannotCreate, error.message.orEmpty()))
+        } catch (_: SecurityException) {
+            failedRecord(manifest, item, filename, permissionFailureMessage(strings))
+        } catch (_: IllegalStateException) {
+            failedRecord(manifest, item, filename, strings.downloadStatusFailedFileErr)
+        } catch (_: RuntimeException) {
+            failedRecord(manifest, item, filename, strings.overlayErrorDefault)
         }
     }
 
@@ -453,11 +646,12 @@ class AndroidDownloadRepository(
             DownloadManager.ERROR_FILE_ALREADY_EXISTS -> strings.downloadStatusFailedDuplicate
             DownloadManager.ERROR_DEVICE_NOT_FOUND -> strings.downloadStatusFailedNoDevice
             DownloadManager.ERROR_FILE_ERROR -> strings.downloadStatusFailedFileErr
-            DownloadManager.ERROR_HTTP_DATA_ERROR -> strings.downloadStatusFailedCdnData
-            DownloadManager.ERROR_CANNOT_RESUME -> strings.downloadStatusFailedCdnResume
-            DownloadManager.ERROR_TOO_MANY_REDIRECTS -> strings.downloadStatusFailedCdnRedirect
-            DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> strings.downloadStatusFailedCdnHttp
-            else -> String.format(strings.downloadStatusFailedCode, reason)
+            DownloadManager.ERROR_HTTP_DATA_ERROR -> strings.errorNetwork
+            DownloadManager.ERROR_CANNOT_RESUME -> strings.downloadFailureServer
+            DownloadManager.ERROR_TOO_MANY_REDIRECTS -> strings.downloadFailureServer
+            DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> strings.downloadFailureServer
+            in 400..599 -> httpFailureMessage(reason, strings)
+            else -> strings.overlayErrorDefault
         }
     }
 
@@ -465,14 +659,17 @@ class AndroidDownloadRepository(
         managerId: Long,
         transform: (DownloadRecord) -> DownloadRecord,
     ) {
-        updateRecords(_records.value.map { if (it.managerId == managerId) transform(it) else it })
+        updateRecords { all -> all.map { if (it.managerId == managerId) transform(it) else it } }
     }
 
-    private fun updateRecords(records: List<DownloadRecord>) {
-        val sorted = records.sortedByDescending { it.createdAt }
-        _records.value = sorted
-        preferences.edit {
-            putString(KEY_RECORDS, encodeRecords(sorted).toString())
+    private fun updateRecords(transform: (List<DownloadRecord>) -> List<DownloadRecord>) {
+        synchronized(recordLock) {
+            val sorted = transform(_records.value).sortedByDescending { it.createdAt }
+            if (sorted == _records.value) return
+            _records.value = sorted
+            preferences.edit {
+                putString(KEY_RECORDS, encodeRecords(sorted).toString())
+            }
         }
     }
 

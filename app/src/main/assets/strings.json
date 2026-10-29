@@ -1,5 +1,8 @@
 {
   "ar": {
+    "downloadRetrying": "انتظار إعادة المحاولة التلقائية (%1$d/%2$d)",
+    "downloadFailureUnavailable": "تعذر تنزيل هذا الملف. ربما انتهت صلاحية الرابط؛ أعد تحليله ثم حاول مجددًا.",
+    "downloadFailureServer": "خادم الوسائط غير متاح مؤقتًا. يرجى المحاولة لاحقًا.",
     "appName": "مُنزل IG و Threads",
     "overlayNotificationTitle": "أداة IG/Threads العائمة نشطة",
     "overlayNotificationText": "انسخ رابط IG / Threads واضغط على الفقاعة العائمة للتحليل",
@@ -157,6 +160,9 @@
     "downloadShareChooserTitle": "مشاركة %1$s"
   },
   "cs": {
+    "downloadRetrying": "Čekání na automatický opakovaný pokus (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Médium nelze stáhnout. Platnost odkazu mohla vypršet; znovu jej načtěte a zkuste to znovu.",
+    "downloadFailureServer": "Server médií je dočasně nedostupný. Zkuste to prosím později.",
     "appName": "Ke stažení IG & Threads",
     "overlayNotificationTitle": "Plovoucí nástroj IG/Threads je aktivní",
     "overlayNotificationText": "Zkopírujte odkaz IG/Threads a klepnutím na bublinu jej analyzujte",
@@ -314,6 +320,9 @@
     "downloadShareChooserTitle": "Sdílet %1$s"
   },
   "de": {
+    "downloadRetrying": "Warten auf automatischen Wiederholungsversuch (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Das Medium kann nicht heruntergeladen werden. Der Link ist möglicherweise abgelaufen; analysiere ihn erneut.",
+    "downloadFailureServer": "Der Medienserver ist vorübergehend nicht erreichbar. Bitte versuche es später erneut.",
     "appName": "IG & Threads Downloader",
     "overlayNotificationTitle": "Schwebendes IG/Threads-Tool aktiv",
     "overlayNotificationText": "IG/Threads-Link kopieren und auf die Blase tippen zum Analysieren",
@@ -471,6 +480,9 @@
     "downloadShareChooserTitle": "%1$s teilen"
   },
   "en": {
+    "downloadRetrying": "Waiting to retry automatically (%1$d/%2$d)",
+    "downloadFailureUnavailable": "This media cannot be downloaded. The link may have expired; parse it again and retry.",
+    "downloadFailureServer": "The media server is temporarily unavailable. Please try again later.",
     "appName": "IG / Threads Downloader",
     "overlayNotificationTitle": "IG / Threads Downloader Floating Tool Active",
     "overlayNotificationText": "Copy an IG / Threads link and tap the floating bubble to parse",
@@ -628,6 +640,9 @@
     "downloadShareChooserTitle": "Share %1$s"
   },
   "es": {
+    "downloadRetrying": "Esperando para reintentar automáticamente (%1$d/%2$d)",
+    "downloadFailureUnavailable": "No se puede descargar el archivo. Es posible que el enlace haya caducado; analízalo de nuevo e inténtalo otra vez.",
+    "downloadFailureServer": "El servidor de medios no está disponible temporalmente. Inténtalo más tarde.",
     "appName": "Descargador de IG y Threads",
     "overlayNotificationTitle": "Herramienta flotante de IG/Threads activa",
     "overlayNotificationText": "Copia un enlace de IG/Threads y toca la burbuja para analizar",
@@ -785,6 +800,9 @@
     "downloadShareChooserTitle": "Compartir %1$s"
   },
   "fr": {
+    "downloadRetrying": "En attente d’une nouvelle tentative automatique (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Impossible de télécharger ce média. Le lien a peut-être expiré ; analysez-le à nouveau puis réessayez.",
+    "downloadFailureServer": "Le serveur de médias est temporairement indisponible. Veuillez réessayer plus tard.",
     "appName": "Téléchargeur IG & Threads",
     "overlayNotificationTitle": "Outil flottant IG/Threads actif",
     "overlayNotificationText": "Copiez un lien IG / Threads et appuyez sur la bulle pour analyser",
@@ -942,6 +960,9 @@
     "downloadShareChooserTitle": "Partager %1$s"
   },
   "hi": {
+    "downloadRetrying": "स्वचालित पुनः प्रयास की प्रतीक्षा (%1$d/%2$d)",
+    "downloadFailureUnavailable": "यह मीडिया डाउनलोड नहीं हो सका। लिंक की अवधि समाप्त हो सकती है; उसे फिर से पार्स करके दोबारा प्रयास करें।",
+    "downloadFailureServer": "मीडिया सर्वर अस्थायी रूप से उपलब्ध नहीं है। कृपया बाद में पुनः प्रयास करें।",
     "appName": "IG और Threads डाउनलोडर",
     "overlayNotificationTitle": "IG/Threads फ्लोटिंग टूल सक्रिय है",
     "overlayNotificationText": "IG / Threads लिंक कॉपी करें और पार्स करने के लिए फ्लोटिंग बबल पर टैप करें",
@@ -1099,6 +1120,9 @@
     "downloadShareChooserTitle": "%1$s शेयर करें"
   },
   "hu": {
+    "downloadRetrying": "Várakozás az automatikus újrapróbálkozásra (%1$d/%2$d)",
+    "downloadFailureUnavailable": "A média nem tölthető le. A hivatkozás lejárhatott; elemezd újra, majd próbáld meg ismét.",
+    "downloadFailureServer": "A médiakiszolgáló átmenetileg nem érhető el. Próbáld újra később.",
     "appName": "IG és Threads letöltő",
     "overlayNotificationTitle": "A lebegő IG/Threads eszköz aktív",
     "overlayNotificationText": "Másoljon egy IG/Threads hivatkozást, majd koppintson a buborékra az elemzéshez",
@@ -1256,6 +1280,9 @@
     "downloadShareChooserTitle": "%1$s megosztása"
   },
   "id": {
+    "downloadRetrying": "Menunggu percobaan ulang otomatis (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Media tidak dapat diunduh. Tautan mungkin telah kedaluwarsa; analisis ulang lalu coba lagi.",
+    "downloadFailureServer": "Server media sedang tidak tersedia. Silakan coba lagi nanti.",
     "appName": "Pengunduh IG & Threads",
     "overlayNotificationTitle": "Alat Melayang IG/Threads Aktif",
     "overlayNotificationText": "Salin tautan IG / Threads lalu ketuk gelembung melayang untuk menganalisis",
@@ -1413,6 +1440,9 @@
     "downloadShareChooserTitle": "Bagikan %1$s"
   },
   "it": {
+    "downloadRetrying": "In attesa di un nuovo tentativo automatico (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Impossibile scaricare il contenuto. Il link potrebbe essere scaduto; analizzalo di nuovo e riprova.",
+    "downloadFailureServer": "Il server multimediale è temporaneamente non disponibile. Riprova più tardi.",
     "appName": "Downloader per IG e Threads",
     "overlayNotificationTitle": "Strumento fluttuante IG/Threads attivo",
     "overlayNotificationText": "Copia un link IG/Threads e tocca la bolla fluttuante per analizzarlo",
@@ -1570,6 +1600,9 @@
     "downloadShareChooserTitle": "Condividi %1$s"
   },
   "ja": {
+    "downloadRetrying": "自動再試行を待機中（%1$d/%2$d）",
+    "downloadFailureUnavailable": "メディアをダウンロードできません。リンクの有効期限が切れた可能性があります。再解析してからお試しください。",
+    "downloadFailureServer": "メディアサーバーを一時的に利用できません。しばらくしてからお試しください。",
     "appName": "IG・Threads ダウンローダー",
     "overlayNotificationTitle": "IG・Threads 浮動ツールが実行中",
     "overlayNotificationText": "IG / Threadsのリンクをコピーして浮動アイコンをタップで解析",
@@ -1727,6 +1760,9 @@
     "downloadShareChooserTitle": "%1$s を共有"
   },
   "ko": {
+    "downloadRetrying": "자동 재시도 대기 중 (%1$d/%2$d)",
+    "downloadFailureUnavailable": "미디어를 다운로드할 수 없습니다. 링크가 만료되었을 수 있으니 다시 분석한 후 시도해 주세요.",
+    "downloadFailureServer": "미디어 서버를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     "appName": "IG・Threads 다운로더",
     "overlayNotificationTitle": "IG・Threads 다운로드 플로팅 도구 실행 중",
     "overlayNotificationText": "IG / Threads 링크 복사 후 플로팅 아이콘을 탭하여 분석",
@@ -1884,6 +1920,9 @@
     "downloadShareChooserTitle": "%1$s 공유"
   },
   "nl": {
+    "downloadRetrying": "Wachten op automatische nieuwe poging (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Dit mediabestand kan niet worden gedownload. De link is mogelijk verlopen; analyseer deze opnieuw en probeer het nog eens.",
+    "downloadFailureServer": "De mediaserver is tijdelijk niet beschikbaar. Probeer het later opnieuw.",
     "appName": "IG & Threads Downloader",
     "overlayNotificationTitle": "Zwevende IG/Threads-tool actief",
     "overlayNotificationText": "Kopieer een IG/Threads-link en tik op de zwevende bubbel om te analyseren",
@@ -2041,6 +2080,9 @@
     "downloadShareChooserTitle": "%1$s delen"
   },
   "pl": {
+    "downloadRetrying": "Oczekiwanie na automatyczną ponowną próbę (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Nie można pobrać pliku. Link mógł wygasnąć; przeanalizuj go ponownie i spróbuj jeszcze raz.",
+    "downloadFailureServer": "Serwer multimediów jest tymczasowo niedostępny. Spróbuj ponownie później.",
     "appName": "Pobieracz IG i Threads",
     "overlayNotificationTitle": "Pływające narzędzie IG/Threads aktywne",
     "overlayNotificationText": "Skopiuj link IG/Threads i dotknij bąbelka, aby przeanalizować",
@@ -2198,6 +2240,9 @@
     "downloadShareChooserTitle": "Udostępnij %1$s"
   },
   "pt-br": {
+    "downloadRetrying": "Aguardando nova tentativa automática (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Não foi possível baixar a mídia. O link pode ter expirado; analise-o novamente e tente outra vez.",
+    "downloadFailureServer": "O servidor de mídia está temporariamente indisponível. Tente novamente mais tarde.",
     "appName": "Baixador de IG e Threads",
     "overlayNotificationTitle": "Ferramenta flutuante IG/Threads ativa",
     "overlayNotificationText": "Copie um link do IG/Threads e toque na bolha flutuante para analisar",
@@ -2355,6 +2400,9 @@
     "downloadShareChooserTitle": "Compartilhar %1$s"
   },
   "ru": {
+    "downloadRetrying": "Ожидание автоматической повторной попытки (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Не удалось скачать медиафайл. Ссылка могла устареть; проанализируйте её заново и повторите попытку.",
+    "downloadFailureServer": "Медиасервер временно недоступен. Пожалуйста, повторите попытку позже.",
     "appName": "Загрузчик IG и Threads",
     "overlayNotificationTitle": "Плавающий инструмент IG/Threads активен",
     "overlayNotificationText": "Скопируйте ссылку IG/Threads и нажмите на плавающий виджет для анализа",
@@ -2512,6 +2560,9 @@
     "downloadShareChooserTitle": "Поделиться %1$s"
   },
   "tr": {
+    "downloadRetrying": "Otomatik yeniden deneme bekleniyor (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Medya indirilemiyor. Bağlantının süresi dolmuş olabilir; yeniden analiz edip tekrar deneyin.",
+    "downloadFailureServer": "Medya sunucusu geçici olarak kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
     "appName": "IG ve Threads İndirici",
     "overlayNotificationTitle": "IG/Threads Yüzen Araç Aktif",
     "overlayNotificationText": "Çözümlemek için bir IG/Threads bağlantısını kopyalayın ve yüzen balona dokunun",
@@ -2669,6 +2720,9 @@
     "downloadShareChooserTitle": "%1$s Paylaş"
   },
   "vi": {
+    "downloadRetrying": "Đang chờ tự động thử lại (%1$d/%2$d)",
+    "downloadFailureUnavailable": "Không thể tải nội dung này. Liên kết có thể đã hết hạn; hãy phân tích lại rồi thử lại.",
+    "downloadFailureServer": "Máy chủ nội dung tạm thời không khả dụng. Vui lòng thử lại sau.",
     "appName": "Trình tải xuống IG & Threads",
     "overlayNotificationTitle": "Công cụ nổi IG/Threads đang hoạt động",
     "overlayNotificationText": "Sao chép liên kết IG / Threads và nhấn vào bong bóng nổi để phân tích",
@@ -2826,6 +2880,9 @@
     "downloadShareChooserTitle": "Chia sẻ %1$s"
   },
   "zh-cn": {
+    "downloadRetrying": "等待自动重试（%1$d/%2$d）",
+    "downloadFailureUnavailable": "无法下载此媒体，链接可能已失效，请重新解析后再试。",
+    "downloadFailureServer": "媒体服务器暂时无法使用，请稍后再试。",
     "appName": "IG・Threads 下载",
     "overlayNotificationTitle": "IG・Threads 下载悬浮工具运行中",
     "overlayNotificationText": "复制 IG / Threads 链接后点击悬浮球即可解析",
@@ -2983,6 +3040,9 @@
     "downloadShareChooserTitle": "分享 %1$s"
   },
   "zh-tw": {
+    "downloadRetrying": "等待自動重試（%1$d/%2$d）",
+    "downloadFailureUnavailable": "無法下載此媒體，連結可能已失效，請重新解析後再試。",
+    "downloadFailureServer": "媒體伺服器暫時無法使用，請稍後再試。",
     "appName": "IG・Threads 下載",
     "overlayNotificationTitle": "IG・Threads 下載懸浮工具運作中",
     "overlayNotificationText": "複製 IG / Threads 連結後點懸浮球即可解析",

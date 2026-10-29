@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -70,6 +71,7 @@ import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.material.icons.filled.Language
 import com.jeremysu0818.igthreadsdl.i18n.AppLanguage
@@ -213,6 +215,8 @@ fun MainScreen(
                     emptyTitle = strings.historyEmptyTitle,
                     emptyBody = strings.historyEmptyBody,
                     strings = strings,
+                    scrollToRecordId = state.historyScrollTargetId,
+                    onScrollToRecordHandled = viewModel::historyScrollHandled,
                     onCancel = viewModel::cancel,
                     onRetry = viewModel::retry,
                     onOpen = viewModel::open,
@@ -1504,11 +1508,25 @@ private fun RecordsPage(
     onOpen: (DownloadRecord) -> Unit,
     onShare: (DownloadRecord) -> Unit,
     onDelete: (Long) -> Unit,
+    scrollToRecordId: Long? = null,
+    onScrollToRecordHandled: (Long) -> Unit = {},
 ) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(scrollToRecordId, records) {
+        val target = scrollToRecordId ?: return@LaunchedEffect
+        val index = records.indexOfFirst { it.managerId == target }
+        if (index >= 0) {
+            // The header is the first item in the list.
+            listState.scrollToItem(index + 1)
+            onScrollToRecordHandled(target)
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(ContentBackground),
+        state = listState,
         contentPadding = PaddingValues(start = 26.dp, top = 8.dp, end = 26.dp, bottom = 112.dp),
     ) {
         item {
