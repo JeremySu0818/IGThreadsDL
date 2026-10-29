@@ -38,7 +38,7 @@ internal fun imageRetryDelayMillis(error: Exception, retryNumber: Int): Long? {
         RETRY_DELAYS_MS
     }
     val base = maxOf(delays[retryNumber - 1], retryAfter)
-    // Spread simultaneous failures across a batch while waiting at least as long as requested.
+    
     return base + Random.nextLong(minOf(base / 4, 2_000L) + 1)
 }
 
@@ -65,7 +65,7 @@ internal suspend fun awaitImageRetryWindow(
     false
 } ?: records.value.any { it.managerId == managerId && it.isActive }
 
-/** Calls onRetry after an attempt fails; returning false stops without another attempt. */
+
 internal suspend fun <T> retryImageTransfer(
     onRetry: suspend (number: Int, waitMillis: Long) -> Boolean,
     attempt: suspend () -> T,

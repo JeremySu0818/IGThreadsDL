@@ -34,10 +34,7 @@ internal fun downloadFailureMessage(error: Throwable, strings: AppStrings): Stri
 internal fun permissionFailureMessage(strings: AppStrings): String =
     strings.downloadErrPermission.substringBefore("%1\$s").trimEnd(' ', ':', '：')
 
-/**
- * Older versions persisted exception messages in these translated templates. Replace those
- * details for every supported language while keeping previously saved, user-facing messages.
- */
+
 internal fun cleanLegacyDownloadFailure(
     message: String,
     translations: Iterable<AppStrings>,

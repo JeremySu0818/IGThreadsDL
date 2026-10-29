@@ -2,7 +2,7 @@ package com.jeremysu0818.igthreadsdl.ui
 
 import com.jeremysu0818.igthreadsdl.domain.download.DownloadRecord
 
-/** Keeps only the latest retry responsible for returning from the queue. */
+
 internal class RetryNavigation {
     private var generation = 0L
 

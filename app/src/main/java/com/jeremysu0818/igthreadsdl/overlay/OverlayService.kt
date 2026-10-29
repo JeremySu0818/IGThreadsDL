@@ -1474,11 +1474,11 @@ class OverlayService : Service() {
     companion object {
         private const val BUBBLE_SCALE = 0.7f
         private const val BASE_BUBBLE_SIZE_DP = 56
-        private val BUBBLE_SIZE_DP = (BASE_BUBBLE_SIZE_DP * BUBBLE_SCALE).roundToInt() // 39 dp
-        private val BUBBLE_RADIUS_DP = BUBBLE_SIZE_DP / 2f // 19.5 dp
+        private val BUBBLE_SIZE_DP = (BASE_BUBBLE_SIZE_DP * BUBBLE_SCALE).roundToInt() 
+        private val BUBBLE_RADIUS_DP = BUBBLE_SIZE_DP / 2f 
         private const val BUBBLE_MARGIN_DP = 8
-        private val BUBBLE_EDGE_OFFSET_DP = BUBBLE_SIZE_DP + BUBBLE_MARGIN_DP // 47 dp
-        private val BUBBLE_TEXT_SIZE_SP = 22f * BUBBLE_SCALE // 15.4f
+        private val BUBBLE_EDGE_OFFSET_DP = BUBBLE_SIZE_DP + BUBBLE_MARGIN_DP 
+        private val BUBBLE_TEXT_SIZE_SP = 22f * BUBBLE_SCALE 
 
         private const val NOTIFICATION_CHANNEL_ID = "overlay_service"
         private const val NOTIFICATION_ID = 1001

@@ -8,12 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 
-/**
- * Opt-in integration check for Instagram's current logged-out post query.
- *
- * Run with:
- * RUN_LIVE_RESOLVER_TESTS=true ./gradlew testDebugUnitTest
- */
+
 class InstagramLiveValidationTest {
     @Test
     fun publicReelReturnsDirectVideo() = runBlocking {

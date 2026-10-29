@@ -198,7 +198,7 @@ class I18nUnitTest {
         assertEquals(AppLanguage.TR, LanguageManager.resolveAppLanguage(AppLanguage.SYSTEM, Locale("tr", "TR")))
         assertEquals(AppLanguage.VI, LanguageManager.resolveAppLanguage(AppLanguage.SYSTEM, Locale("vi", "VN")))
 
-        // Test Unsupported locale fallbacks to English
+        
         assertEquals(AppLanguage.EN, LanguageManager.resolveAppLanguage(AppLanguage.SYSTEM, Locale("fi", "FI")))
         assertEquals(AppLanguage.EN, LanguageManager.resolveAppLanguage(AppLanguage.SYSTEM, Locale("sw", "TZ")))
     }

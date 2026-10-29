@@ -20,11 +20,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.Locale
 
-/**
- * Resolves a shared Instagram Story with the session saved by the in-app
- * Instagram login WebView. No password is handled by this resolver and no
- * third-party Story index is contacted.
- */
+
 class InstagramStoryResolver(
     private val client: OkHttpClient = defaultResolverClient,
     private val sessionProvider: () -> String? = InstagramSessionManager::cookieHeader,

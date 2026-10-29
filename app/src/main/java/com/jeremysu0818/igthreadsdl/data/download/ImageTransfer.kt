@@ -41,7 +41,7 @@ internal inline fun <T> storageOperation(action: () -> T): T =
         throw DownloadStorageException(error)
     }
 
-/** Preserve whether a failure came from writing the file or reading the network. */
+
 internal fun storageOutputStream(output: OutputStream): OutputStream =
     object : FilterOutputStream(output) {
         override fun write(b: Int) = storageOperation { out.write(b) }

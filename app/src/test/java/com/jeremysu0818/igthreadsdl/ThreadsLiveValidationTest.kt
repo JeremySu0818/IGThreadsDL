@@ -7,12 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 
-/**
- * Opt-in integration check for the confirmed production endpoint.
- *
- * Run with:
- * RUN_LIVE_RESOLVER_TESTS=true ./gradlew testDebugUnitTest
- */
+
 class ThreadsLiveValidationTest {
     @Test
     fun confirmedThreadsUrlReturnsRealMedia() = runBlocking {

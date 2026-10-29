@@ -12,7 +12,7 @@ object LanguageManager {
     @Volatile
     private var catalog: Map<AppLanguage, AppStrings> = emptyMap()
 
-    /** Load the bundled JSON before any UI, resolver, or service requests text. */
+    
     fun initialize(context: Context) {
         context.assets.open("strings.json").use(::loadTranslations)
     }
@@ -20,8 +20,8 @@ object LanguageManager {
     internal fun loadTranslations(input: InputStream) {
         val root = JSONObject(input.bufferedReader(Charsets.UTF_8).readText())
         val english = root.getJSONObject(AppLanguage.EN.code)
-        // Publish only after every language has been decoded, so readers never see
-        // a partially loaded catalog. Missing translated keys fall back to English.
+        
+        
         catalog = AppLanguage.supportedLanguages.associateWith { language ->
             AppStrings.fromJson(root.optJSONObject(language.code) ?: english, english)
         }

@@ -309,7 +309,7 @@ private fun BottomNavBar(
                 .fillMaxWidth()
                 .padding(5.dp)
         ) {
-            // Animated translucent slider pill
+            
             Box(modifier = Modifier.matchParentSize()) {
                 Box(
                     modifier = Modifier
@@ -323,7 +323,7 @@ private fun BottomNavBar(
                 )
             }
 
-            // Foreground items Row
+            
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -1516,7 +1516,7 @@ private fun RecordsPage(
         val target = scrollToRecordId ?: return@LaunchedEffect
         val index = records.indexOfFirst { it.managerId == target }
         if (index >= 0) {
-            // The header is the first item in the list.
+            
             listState.scrollToItem(index + 1)
             onScrollToRecordHandled(target)
         }

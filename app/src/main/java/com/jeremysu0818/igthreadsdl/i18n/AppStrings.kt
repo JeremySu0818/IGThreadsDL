@@ -1,19 +1,19 @@
 package com.jeremysu0818.igthreadsdl.i18n
 
 data class AppStrings(
-    // App & Service
+    
     val appName: String,
     val overlayNotificationTitle: String,
     val overlayNotificationText: String,
     val overlayNotificationActionStop: String,
 
-    // Navigation
+    
     val navHome: String,
     val navQueue: String,
     val navHistory: String,
     val navSettings: String,
 
-    // Home / Download Page
+    
     val pageHomeTitle: String,
     val overlayQuickControlTitle: String,
     val overlayQuickControlNeedPermission: String,
@@ -27,7 +27,7 @@ data class AppStrings(
     val urlInputParseBtn: String,
     val urlInputParsingBtn: String,
 
-    // Manifest / Preview
+    
     val manifestTitle: String,
     val manifestPublicSource: String,
     val manifestItemsCount: String,
@@ -42,7 +42,7 @@ data class AppStrings(
     val mediaItemFallbackMime: String,
     val manifestDownloadSelectedBtn: String,
 
-    // Queue & History Pages
+    
     val queueTitle: String,
     val queueSubtitle: String,
     val queueSubtitleWithCount: String,
@@ -55,7 +55,7 @@ data class AppStrings(
     val historyEmptyTitle: String,
     val historyEmptyBody: String,
 
-    // Record Status & Buttons
+    
     val statusQueued: String,
     val statusRunning: String,
     val statusPaused: String,
@@ -70,7 +70,7 @@ data class AppStrings(
     val btnRetry: String,
     val btnDeleteRecord: String,
 
-    // Settings Page
+    
     val settingsTitle: String,
     val settingsColorModeTitle: String,
     val settingsLanguageTitle: String,
@@ -92,20 +92,20 @@ data class AppStrings(
     val settingsAppInfoTitle: String,
     val settingsAppInfoSubtitle: String,
 
-    // Permission Dialog
+    
     val permissionDialogTitle: String,
     val permissionDialogMessage: String,
     val permissionBtnOverlay: String,
     val permissionBtnNotifications: String,
 
-    // Instagram Login
+    
     val instagramLoginTitle: String,
     val instagramLoginNotice: String,
     val instagramLoginSuccess: String,
     val instagramLoginBlockedNavigation: String,
     val instagramLoginLoadFailed: String,
 
-    // Dynamic Messages (MainViewModel / Overlay)
+    
     val msgInvalidClipboard: String,
     val msgLinkCapturedResolving: String,
     val msgSelectAtLeastOne: String,
@@ -122,7 +122,7 @@ data class AppStrings(
     val msgPartialManifest: String,
     val msgGotMediaItems: String,
 
-    // Resolver Errors
+    
     val errorInvalidUrl: String,
     val errorUnsupportedPlatform: String,
     val errorPrivateContent: String,
@@ -135,7 +135,7 @@ data class AppStrings(
     val errorHttp: String,
     val errorEmptyMedia: String,
 
-    // Overlay View & Service
+    
     val overlayBtnMinimize: String,
     val overlayBtnClose: String,
     val overlayDragToStop: String,
@@ -158,7 +158,7 @@ data class AppStrings(
     val overlayBtnOpenInApp: String,
     val overlayAccessibilityDescription: String,
 
-    // Download Repository Messages & Errors
+    
     val downloadHlsNotSupported: String,
     val downloadFailureUnavailable: String,
     val downloadFailureServer: String,

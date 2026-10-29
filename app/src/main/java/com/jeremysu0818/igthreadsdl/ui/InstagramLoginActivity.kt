@@ -201,12 +201,7 @@ class InstagramLoginActivity : ComponentActivity() {
         handler.post(sessionPoll)
     }
 
-    /**
-     * Instagram's current mobile login shell can give its scroll container a
-     * computed height of zero inside Android WebView. The form is present in
-     * the DOM but gets clipped after the initial logo frame. This script only
-     * repairs those zero-height ancestors; it never reads or submits a field.
-     */
+    
     private fun repairInstagramLoginLayout(view: WebView) {
         view.evaluateJavascript(INSTAGRAM_LAYOUT_REPAIR_SCRIPT, null)
     }

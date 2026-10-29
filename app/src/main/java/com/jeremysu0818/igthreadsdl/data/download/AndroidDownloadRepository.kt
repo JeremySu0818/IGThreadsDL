@@ -307,7 +307,7 @@ class AndroidDownloadRepository(
                 downloadImageOnce(record)
             }
         } catch (_: CancellationException) {
-            // Cancellation and deletion have already updated the record.
+            
         } catch (error: Exception) {
             replaceRecord(record.managerId) {
                 if (it.isActive) it.copy(
@@ -337,7 +337,7 @@ class AndroidDownloadRepository(
         }
         if (!scheduled) return false
 
-        // Observe the record while waiting so cancelling or deleting it stops retries immediately.
+        
         return awaitImageRetryWindow(records, managerId, waitMillis)
     }
 
@@ -350,7 +350,7 @@ class AndroidDownloadRepository(
                 }
             }.build(),
         )
-        // Register and check the record under the same lock as cancellation.
+        
         val registered = synchronized(recordLock) {
             if (_records.value.none { it.managerId == record.managerId && it.isActive }) {
                 false

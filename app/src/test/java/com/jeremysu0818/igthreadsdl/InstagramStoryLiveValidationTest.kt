@@ -10,15 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 
-/**
- * Opt-in integration check for a currently active public Instagram Story.
- *
- * Run with:
- * RUN_LIVE_RESOLVER_TESTS=true \
- * INSTAGRAM_STORY_LIVE_TEST_URL=https://www.instagram.com/stories/user/id/ \
- * INSTAGRAM_SESSION_COOKIE='sessionid=…; csrftoken=…' \
- * ./gradlew testDebugUnitTest --tests '*InstagramStoryLiveValidationTest'
- */
+
 class InstagramStoryLiveValidationTest {
     @Test
     fun activePublicStoryReturnsDownloadableMedia() = runBlocking {
@@ -43,7 +35,7 @@ class InstagramStoryLiveValidationTest {
         assertEquals("video/mp4", item.mimeType)
         assertTrue(item.downloadUrl.startsWith("https://"))
 
-        // Physically download the resolved URL to disk
+        
         val client = okhttp3.OkHttpClient()
         val request = okhttp3.Request.Builder()
             .url(item.downloadUrl)
