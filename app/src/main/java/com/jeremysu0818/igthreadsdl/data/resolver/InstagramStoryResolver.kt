@@ -38,6 +38,10 @@ class InstagramStoryResolver(
             ?: return@withContext ResolverResult.Failure(ResolverError.LoginRequired())
 
         try {
+            if (normalized.isHighlight) {
+                val result = requestHighlightFeed(normalized, cookieHeader)
+                return@withContext if (result is ResolverResult.Success) enrich(result) else result
+            }
             val direct = requestStoryByMediaId(normalized, cookieHeader)
             if (direct is ResolverResult.Success) {
                 return@withContext enrich(direct)
@@ -68,12 +72,46 @@ class InstagramStoryResolver(
         return ResolverResult.Success(result.manifest.copy(items = items))
     }
 
+    private fun requestHighlightFeed(
+        normalized: InstagramStoryUrl,
+        cookieHeader: String,
+    ): ResolverResult {
+        val url = "https://i.instagram.com/api/v1/feed/reels_media/".toHttpUrlOrNull()!!
+            .newBuilder()
+            .addQueryParameter("reel_ids", "highlight:${normalized.storyId}")
+            .build()
+        val request = authenticatedRequest(url.toString(), normalized.normalizedUrl, cookieHeader)
+        val feed = executeJsonRequest(request) { payload ->
+            parseAuthenticatedPayload(normalized.normalizedUrl, payload, cookieHeader, hydrateVideos = true)
+        }
+        if (feed is ResolverResult.Success ||
+            feed is ResolverResult.Failure &&
+            (feed.error is ResolverError.LoginRequired || feed.error is ResolverError.RateLimited)
+        ) return feed
+        val variables = JSONObject()
+            .put("reel_ids", JSONArray())
+            .put("tag_names", JSONArray())
+            .put("location_ids", JSONArray())
+            .put("highlight_reel_ids", JSONArray().put(normalized.storyId))
+            .put("precomposed_overlay", false)
+        val graphUrl = "$INSTAGRAM_BASE_URL/graphql/query/".toHttpUrlOrNull()!!
+            .newBuilder()
+            .addQueryParameter("query_hash", "45246d3fe16ccc6577e0bd297a5db1ab")
+            .addQueryParameter("variables", variables.toString())
+            .build()
+        return executeJsonRequest(authenticatedRequest(
+            graphUrl.toString(), normalized.normalizedUrl, cookieHeader,
+        )) { payload ->
+            parseAuthenticatedPayload(normalized.normalizedUrl, payload, cookieHeader, hydrateVideos = true)
+        }
+    }
+
     private fun requestStoryByMediaId(
         normalized: InstagramStoryUrl,
         cookieHeader: String,
     ): ResolverResult {
         val request = authenticatedRequest(
-            url = "$INSTAGRAM_BASE_URL/api/v1/media/${normalized.storyId}/info/",
+            url = "https://i.instagram.com/api/v1/media/${normalized.storyId}/info/",
             referer = normalized.normalizedUrl,
             cookieHeader = cookieHeader,
         )
@@ -172,6 +210,7 @@ class InstagramStoryResolver(
         sourceUrl: String,
         payload: String,
         cookieHeader: String,
+        hydrateVideos: Boolean = false,
     ): ResolverResult {
         val normalized = UrlNormalizer.normalizeInstagramStory(sourceUrl)
             ?: return ResolverResult.Failure(ResolverError.InvalidUrl())
@@ -189,6 +228,8 @@ class InstagramStoryResolver(
             return ResolverResult.Failure(ResolverError.LoginRequired())
         }
 
+        if (normalized.isHighlight) return parseHighlightPayload(normalized, root, cookieHeader, hydrateVideos)
+
         val items = findStoryItems(root)
         val media = (0 until items.length())
             .mapNotNull(items::optJSONObject)
@@ -203,6 +244,11 @@ class InstagramStoryResolver(
 
         val image = bestImageCandidate(media)
         val video = bestVideoCandidate(media)
+        if (isVideo(media) && video == null) {
+            return ResolverResult.Failure(
+                ResolverError.HtmlStructureChanged("instagram", "Story video URL is missing"),
+            )
+        }
         val type: MediaItemType
         val mediaUrl: String
         val width: Int?
@@ -278,6 +324,122 @@ class InstagramStoryResolver(
         )
     }
 
+    private fun parseHighlightPayload(
+        normalized: InstagramStoryUrl,
+        root: JSONObject,
+        cookieHeader: String,
+        hydrateVideos: Boolean,
+    ): ResolverResult {
+        val reelKey = "highlight:${normalized.storyId}"
+        val reels = root.optJSONArray("reels_media")
+            ?: root.optJSONObject("data")?.optJSONArray("reels_media")
+        val reel = root.optJSONObject("reels")?.optJSONObject(reelKey)
+            ?: reels?.let { array ->
+                (0 until array.length()).mapNotNull(array::optJSONObject)
+                    .firstOrNull { it.optString("id") in setOf(reelKey, normalized.storyId) }
+            }
+            ?: return ResolverResult.Failure(ResolverError.ContentNotFound())
+        val items = reel.optJSONArray("items")
+            ?: return ResolverResult.Failure(ResolverError.ContentNotFound())
+        if (items.length() == 0) return ResolverResult.Failure(ResolverError.ContentNotFound())
+        val owner = (reel.optJSONObject("user") ?: reel.optJSONObject("owner"))?.optString("username")
+            ?.takeIf { it.matches(Regex("[A-Za-z0-9._]+")) && it != "highlights" }
+        val resolved = mutableListOf<MediaItem>()
+        for (index in 0 until items.length()) {
+            val media = items.optJSONObject(index)
+                ?: return ResolverResult.Failure(
+                    ResolverError.HtmlStructureChanged("instagram", "invalid Story item"),
+                )
+            val id = media.optString("pk").ifBlank {
+                media.optString("id").substringBefore('_')
+            }
+            if (!id.matches(NUMERIC_ID_PATTERN)) {
+                return ResolverResult.Failure(
+                    ResolverError.HtmlStructureChanged("instagram", "Story ID is missing"),
+                )
+            }
+            if (isVideo(media) && bestVideoCandidate(media) == null && hydrateVideos) {
+                val result = requestStoryByMediaId(
+                    InstagramStoryUrl(
+                        normalizedUrl = "https://www.instagram.com/stories/${owner ?: "unknown"}/$id/",
+                        author = owner ?: "unknown",
+                        storyId = id,
+                    ),
+                    cookieHeader,
+                )
+                if (result is ResolverResult.Failure) return result
+                val item = (result as ResolverResult.Success).manifest.items.single()
+                if (item.type != MediaItemType.VIDEO) {
+                    return ResolverResult.Failure(
+                        ResolverError.HtmlStructureChanged("instagram", "Story video URL is missing"),
+                    )
+                }
+                resolved += item.copy(
+                    requestHeaders = item.requestHeaders + ("Referer" to normalized.normalizedUrl),
+                )
+                continue
+            }
+            // GraphQL and the mobile API expose different names for the same Story fields.
+            if (!media.has("image_versions2")) {
+                val resources = media.optJSONArray("display_resources") ?: JSONArray()
+                val candidates = JSONArray()
+                for (resourceIndex in 0 until resources.length()) {
+                    val resource = resources.optJSONObject(resourceIndex) ?: continue
+                    candidates.put(JSONObject()
+                        .put("url", resource.optString("src"))
+                        .put("width", resource.optInt("config_width"))
+                        .put("height", resource.optInt("config_height")))
+                }
+                media.optString("display_url").takeIf { it.isNotBlank() }?.let {
+                    candidates.put(JSONObject().put("url", it))
+                }
+                media.put("image_versions2", JSONObject().put("candidates", candidates))
+            }
+            // Reuse the exact same media selection and URL validation as ordinary Stories.
+            val result = parseAuthenticatedPayload(
+                "https://www.instagram.com/stories/${owner ?: "unknown"}/$id/",
+                JSONObject().put("items", JSONArray().put(media)).toString(),
+                cookieHeader,
+            )
+            if (result is ResolverResult.Failure) return result
+            val item = (result as ResolverResult.Success).manifest.items.single()
+            resolved += item.copy(
+                requestHeaders = item.requestHeaders + ("Referer" to normalized.normalizedUrl),
+            )
+        }
+        if (resolved.isEmpty()) return ResolverResult.Failure(ResolverError.ContentNotFound())
+        val timestamps = (0 until items.length()).mapNotNull { index ->
+            val entry = items.optJSONObject(index) ?: return@mapNotNull null
+            val id = entry.optString("pk").ifBlank { entry.optString("id").substringBefore('_') }
+            val timestamp = entry.optLong("taken_at_timestamp").takeIf { it > 0 }
+                ?: entry.optLong("taken_at").takeIf { it > 0 }
+            timestamp?.let { "instagram_story_$id" to it }
+        }.toMap()
+        val unique = resolved.distinctBy { it.id }
+        // Responses can arrive newest first. Use publication time for playback order,
+        // or the numeric media ID when timestamps are absent; never compare IDs as strings.
+        val media = if (unique.all { it.id in timestamps }) {
+            unique.sortedBy { timestamps.getValue(it.id) }
+        } else {
+            unique.sortedBy { java.math.BigInteger(it.id.removePrefix("instagram_story_")) }
+        }
+        return ResolverResult.Success(
+            MediaManifest(
+                platform = MediaPlatform.INSTAGRAM,
+                type = ManifestType.STORY,
+                author = owner ?: items.optJSONObject(0)?.optJSONObject("user")
+                    ?.optString("username")?.takeIf { it.isNotBlank() },
+                sourceUrl = normalized.normalizedUrl,
+                title = reel.optString("title").takeIf { it.isNotBlank() },
+                caption = null,
+                thumbnailUrl = media.first().thumbnailUrl,
+                items = media,
+                isPartial = false,
+                warnings = emptyList(),
+            ),
+        )
+    }
+
     private fun findStoryItems(root: JSONObject): JSONArray {
         root.optJSONArray("items")?.let { return it }
         root.optJSONArray("reels_media")
@@ -292,11 +454,28 @@ class InstagramStoryResolver(
         return JSONArray()
     }
 
+    private fun isVideo(media: JSONObject): Boolean =
+        media.optBoolean("is_video") || media.optInt("media_type") == 2 ||
+            media.optString("__typename").contains("Video", ignoreCase = true) ||
+            media.has("video_resources") || media.has("video_versions") ||
+            media.optString("video_url").isNotBlank()
+
     private fun bestVideoCandidate(media: JSONObject): JSONObject? {
-        val versions = media.optJSONArray("video_versions") ?: return null
-        return (0 until versions.length())
-            .mapNotNull(versions::optJSONObject)
-            .filter { isTrustedInstagramMediaUrl(it.optString("url")) }
+        val candidates = mutableListOf<JSONObject>()
+        for (key in listOf("video_versions", "video_resources")) {
+            val versions = media.optJSONArray(key) ?: continue
+            for (index in 0 until versions.length()) {
+                val resource = versions.optJSONObject(index) ?: continue
+                candidates += JSONObject()
+                    .put("url", resource.optString("url").ifBlank { resource.optString("src") })
+                    .put("width", resource.optInt("width").takeIf { it > 0 } ?: resource.optInt("config_width"))
+                    .put("height", resource.optInt("height").takeIf { it > 0 } ?: resource.optInt("config_height"))
+            }
+        }
+        media.optString("video_url").takeIf { it.isNotBlank() }?.let {
+            candidates += JSONObject().put("url", it)
+        }
+        return candidates.filter { isTrustedInstagramMediaUrl(it.optString("url")) }
             .maxByOrNull(::dimensionsArea)
     }
 

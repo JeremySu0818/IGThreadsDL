@@ -2,6 +2,7 @@ package com.jeremysu0818.igthreadsdl.data.resolver
 
 import com.jeremysu0818.igthreadsdl.domain.model.ManifestType
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.util.Base64
 
 data class InstagramUrl(
     val normalizedUrl: String,
@@ -13,6 +14,8 @@ data class InstagramStoryUrl(
     val normalizedUrl: String,
     val author: String,
     val storyId: String,
+    val isHighlight: Boolean = false,
+    val selectedStoryId: String? = null,
 )
 
 data class ThreadsUrl(
@@ -53,18 +56,38 @@ object UrlNormalizer {
         if (parsed.host.lowercase() !in instagramHosts) return null
 
         val segments = parsed.pathSegments.filter { it.isNotBlank() }
+        if (segments.size == 2 && segments[0].equals("s", ignoreCase = true)) {
+            val decoded = runCatching {
+                String(Base64.getUrlDecoder().decode(segments[1]), Charsets.UTF_8)
+            }.getOrNull() ?: return null
+            val highlightId = Regex("highlight:([0-9]+)").matchEntire(decoded)
+                ?.groupValues?.get(1) ?: return null
+            val canonical = parsed.newBuilder()
+                .encodedPath("/stories/highlights/$highlightId/")
+                .build()
+            return normalizeInstagramStory(canonical.toString())
+        }
         if (segments.size < 3 || !segments[0].equals("stories", ignoreCase = true)) return null
         val author = segments[1]
             .removePrefix("@")
             .takeIf { it.matches(Regex("[A-Za-z0-9._]+")) }
             ?: return null
-        if (author.equals("highlights", ignoreCase = true)) return null
+        val isHighlight = author.equals("highlights", ignoreCase = true)
         val storyId = segments[2].takeIf { it.matches(Regex("[0-9]+")) } ?: return null
 
+        val selectedStoryId = if (isHighlight) {
+            parsed.queryParameter("story_media_id")?.let { value ->
+                if (!value.matches(Regex("[0-9]+(?:_[0-9]+)?"))) return null
+                value.substringBefore('_')
+            }
+        } else null
+        val canonicalUrl = "https://www.instagram.com/stories/${if (isHighlight) "highlights" else author}/$storyId/"
         return InstagramStoryUrl(
-            normalizedUrl = "https://www.instagram.com/stories/$author/$storyId/",
+            normalizedUrl = canonicalUrl + (selectedStoryId?.let { "?story_media_id=$it" } ?: ""),
             author = author,
             storyId = storyId,
+            isHighlight = isHighlight,
+            selectedStoryId = selectedStoryId,
         )
     }
 

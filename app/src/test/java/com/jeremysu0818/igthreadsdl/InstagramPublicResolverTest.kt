@@ -9,10 +9,59 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import okhttp3.ResponseBody.Companion.toResponseBody
 
 class InstagramPublicResolverTest {
     private val resolver = InstagramPublicResolver()
     private val sourceUrl = "https://www.instagram.com/p/Carousel123/"
+
+    @Test
+    fun privatePostFallbackUsesCurrentSessionAndUpdatedCsrfWithoutLeakingToCdn() =
+        kotlinx.coroutines.runBlocking {
+            var graphqlRequested = false
+            val client = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+                val request = chain.request()
+                val body = when {
+                    request.url.host.endsWith("cdninstagram.com") -> {
+                        assertEquals(null, request.header("Cookie"))
+                        ""
+                    }
+                    request.url.encodedPath == "/graphql/query" -> {
+                        graphqlRequested = true
+                        assertEquals("sessionid=logged-in; csrftoken=fresh", request.header("Cookie"))
+                        assertEquals("fresh", request.header("X-CSRFToken"))
+                        """{"data":{"xdt_api__v1__media__shortcode__web_info":{"items":[{
+                            "image_versions2":{"candidates":[{
+                                "url":"https://scontent.cdninstagram.com/v/private.jpg",
+                                "width":1080,"height":1080
+                            }]}
+                        }]}}}"""
+                    }
+                    else -> {
+                        assertEquals("sessionid=logged-in; csrftoken=old", request.header("Cookie"))
+                        """<html><body>This account is private
+                            <script>["LSD",[],{"token":"test-lsd"}]</script>
+                        </body></html>"""
+                    }
+                }
+                okhttp3.Response.Builder().request(request)
+                    .protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+                    .apply {
+                        if (request.url.encodedPath.startsWith("/p/")) {
+                            addHeader("Set-Cookie", "csrftoken=fresh; Path=/; Secure")
+                        }
+                    }
+                    .body(body.toResponseBody()).build()
+            }.build()
+            val authenticatedResolver = InstagramPublicResolver(client) {
+                "sessionid=logged-in; csrftoken=old"
+            }
+            val result = authenticatedResolver.resolve(sourceUrl)
+            assertTrue(result is ResolverResult.Success)
+            assertTrue(graphqlRequested)
+            assertFalse((result as ResolverResult.Success).manifest.items.single()
+                .requestHeaders.containsKey("Cookie"))
+        }
 
     @Test
     fun verifiedSidecarCreatesOneItemPerNodeAndDoesNotDownloadVideoCover() {
@@ -101,7 +150,7 @@ class InstagramPublicResolverTest {
         assertTrue("reel-hd.mp4" in manifest.items.single().downloadUrl)
         assertTrue("reel-cover.jpg" in checkNotNull(manifest.items.single().thumbnailUrl))
         assertTrue(manifest.items.none { "reel-cover.jpg" in it.downloadUrl })
-        assertEquals("csrftoken=test", manifest.items.single().requestHeaders["Cookie"])
+        assertFalse(manifest.items.single().requestHeaders.containsKey("Cookie"))
     }
 
     @Test

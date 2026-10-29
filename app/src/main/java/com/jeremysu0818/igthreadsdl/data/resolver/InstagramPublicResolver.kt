@@ -1,5 +1,6 @@
 package com.jeremysu0818.igthreadsdl.data.resolver
 
+import com.jeremysu0818.igthreadsdl.data.session.InstagramSessionManager
 import com.jeremysu0818.igthreadsdl.domain.download.FilenameGenerator
 import com.jeremysu0818.igthreadsdl.domain.model.ManifestType
 import com.jeremysu0818.igthreadsdl.domain.model.MediaItem
@@ -27,12 +28,14 @@ import java.util.Locale
 
 class InstagramPublicResolver(
     private val client: OkHttpClient = defaultResolverClient,
+    private val sessionProvider: () -> String? = InstagramSessionManager::cookieHeader,
 ) : MediaResolver {
     override fun supports(url: String): Boolean = UrlNormalizer.normalizeInstagram(url) != null
 
     override suspend fun resolve(url: String): ResolverResult = withContext(Dispatchers.IO) {
         val normalized = UrlNormalizer.normalizeInstagram(url)
             ?: return@withContext ResolverResult.Failure(ResolverError.InvalidUrl())
+        val sessionCookies = runCatching(sessionProvider).getOrNull()
         val request = Request.Builder()
             .url(normalized.normalizedUrl)
             .get()
@@ -43,6 +46,7 @@ class InstagramPublicResolver(
             )
             .header("Accept-Language", "zh-TW,zh;q=0.9,en;q=0.8")
             .header("Referer", INSTAGRAM_BASE_URL)
+            .apply { sessionCookies?.let { header("Cookie", it) } }
             .build()
 
         try {
@@ -61,9 +65,11 @@ class InstagramPublicResolver(
                     return@withContext ResolverResult.Failure(ResolverError.LoginRequired())
                 }
                 val cookies = responseCookieList(response.headers, response.request.url)
-                val cookieHeader = cookies
-                    .takeIf { it.isNotEmpty() }
-                    ?.joinToString("; ") { "${it.name}=${it.value}" }
+                val cookieHeader = buildMap {
+                    sessionCookies?.let { putAll(InstagramSessionManager.parseCookies(it)) }
+                    cookies.forEach { put(it.name, it.value) }
+                }.entries.joinToString("; ") { "${it.key}=${it.value}" }
+                    .takeIf { it.isNotBlank() }
                 when (
                     val parsed = parseHtml(
                         sourceUrl = normalized.normalizedUrl,
@@ -77,7 +83,8 @@ class InstagramPublicResolver(
                     }
                     is ResolverResult.Failure -> {
                         if (parsed.error !is ResolverError.HtmlStructureChanged &&
-                            parsed.error !is ResolverError.LoginRequired
+                            parsed.error !is ResolverError.LoginRequired &&
+                            !(sessionCookies != null && parsed.error is ResolverError.PrivateContent)
                         ) {
                             parsed
                         } else {
@@ -85,7 +92,6 @@ class InstagramPublicResolver(
                                 sourceUrl = normalized.normalizedUrl,
                                 shortcode = normalized.shortcode,
                                 html = responseText,
-                                cookies = cookies,
                                 cookieHeader = cookieHeader,
                                 originalFailure = parsed,
                             )
@@ -106,12 +112,11 @@ class InstagramPublicResolver(
         sourceUrl: String,
         shortcode: String,
         html: String,
-        cookies: List<Cookie>,
         cookieHeader: String?,
         originalFailure: ResolverResult.Failure,
     ): ResolverResult {
         val lsd = extractLsdToken(html) ?: return originalFailure
-        val csrfToken = cookies.firstOrNull { it.name == "csrftoken" }?.value
+        val csrfToken = cookieHeader?.let(InstagramSessionManager::csrfToken)
             ?: return originalFailure
         val variables = JSONObject()
             .put("shortcode", shortcode)
@@ -211,7 +216,7 @@ class InstagramPublicResolver(
         val requestHeaders = buildMap {
             put("User-Agent", ANDROID_CHROME_USER_AGENT)
             put("Referer", normalized.normalizedUrl)
-            cookieHeader?.takeIf { it.isNotBlank() }?.let { put("Cookie", it) }
+            // Signed CDN URLs do not need Instagram account cookies.
         }
         val filenames = mutableSetOf<String>()
         val manifestItems = resolved.mapIndexed { index, candidate ->
@@ -411,7 +416,7 @@ class InstagramPublicResolver(
         val requestHeaders = buildMap {
             put("User-Agent", ANDROID_CHROME_USER_AGENT)
             put("Referer", normalized.normalizedUrl)
-            cookieHeader?.takeIf { it.isNotBlank() }?.let { put("Cookie", it) }
+            // Signed CDN URLs do not need Instagram account cookies.
         }
         val filenames = mutableSetOf<String>()
         val items = accepted.mapIndexed { index, candidate ->

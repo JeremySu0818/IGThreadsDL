@@ -50,9 +50,52 @@ class UrlNormalizerTest {
     }
 
     @Test
-    fun storyTrayAndHighlightUrlsAreRejected() {
+    fun storyTrayIsRejectedButHighlightShareUrlIsSupported() {
         assertNull(UrlNormalizer.normalizeInstagramStory("https://instagram.com/stories/public.creator/"))
-        assertNull(UrlNormalizer.normalizeInstagramStory("https://instagram.com/stories/highlights/123/"))
+        val url = "https://instagram.com/stories/highlights/123/?igsh=tracking"
+        val normalized = UrlNormalizer.normalizeInstagramStory(url)
+        assertEquals(true, normalized?.isHighlight)
+        assertEquals("123", normalized?.storyId)
+        assertEquals("https://www.instagram.com/stories/highlights/123/", normalized?.normalizedUrl)
+        assertEquals(true, UrlNormalizer.isSupported(url))
+        assertEquals(url, UrlNormalizer.extractSupportedUrl("Share $url"))
+        assertNull(UrlNormalizer.normalizeInstagramStory("https://instagram.com/stories/highlights/abc/"))
+        assertNull(UrlNormalizer.normalizeInstagramStory("https://example.com/stories/highlights/123/"))
+    }
+
+    @Test
+    fun encodedHighlightSharePreservesSelectedStoryAndRemovesTracking() {
+        val url = "https://www.instagram.com/s/aGlnaGxpZ2h0OjE4MDA2NDI1OTY2ODAyMzQw" +
+            "?story_media_id=3735235249904446946_37098377413&psln=bzQ4OTFnMWh5cDVo"
+        val normalized = UrlNormalizer.normalizeInstagramStory(url)
+        assertEquals("18006425966802340", normalized?.storyId)
+        assertEquals(true, normalized?.isHighlight)
+        assertEquals("3735235249904446946", normalized?.selectedStoryId)
+        assertEquals(
+            "https://www.instagram.com/stories/highlights/18006425966802340/" +
+                "?story_media_id=3735235249904446946",
+            normalized?.normalizedUrl,
+        )
+        assertEquals(normalized, normalized?.normalizedUrl?.let(UrlNormalizer::normalizeInstagramStory))
+        assertEquals(true, UrlNormalizer.isSupported(url))
+        assertEquals(url, UrlNormalizer.extractSupportedUrl("Share $url"))
+    }
+
+    @Test
+    fun malformedHighlightSharesAreRejected() {
+        assertNull(UrlNormalizer.normalizeInstagramStory("https://instagram.com/s/invalid!/"))
+        assertNull(UrlNormalizer.normalizeInstagramStory("https://instagram.com/s/cG9zdDoxMjM/"))
+        assertNull(UrlNormalizer.normalizeInstagramStory(
+            "https://instagram.com/stories/highlights/123/?story_media_id=invalid",
+        ))
+        assertNull(UrlNormalizer.normalizeInstagramStory(
+            "https://example.com/s/aGlnaGxpZ2h0OjEyMw",
+        ))
+        val highlight = UrlNormalizer.normalizeInstagramStory(
+            "https://instagram.com/s/aGlnaGxpZ2h0OjEyMw",
+        )
+        assertEquals("123", highlight?.storyId)
+        assertNull(highlight?.selectedStoryId)
     }
 
     @Test
