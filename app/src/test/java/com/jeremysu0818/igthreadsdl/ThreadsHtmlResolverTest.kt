@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import okhttp3.ResponseBody.Companion.toResponseBody
 
 class ThreadsHtmlResolverTest {
     private val resolver = ThreadsHtmlResolver()
@@ -72,6 +73,53 @@ class ThreadsHtmlResolverTest {
         assertTrue(manifest.items.none { "logo" in it.downloadUrl || "thumbnailsite" in it.downloadUrl })
         assertTrue(manifest.items.any { "photo-one.webp" in it.downloadUrl })
         assertTrue(manifest.items.any { "photo-three.avif" in it.downloadUrl && "&y=2" in it.downloadUrl })
+    }
+
+    @Test
+    fun jsonLoginResponseKeepsThreadsPlatform() {
+        val result = resolver.parseHtml(sourceUrl, """{"login_required":true,"status":"fail"}""")
+        val error = (result as ResolverResult.Failure).error as ResolverError.LoginRequired
+        assertEquals("threads", error.platform)
+    }
+
+    @Test
+    fun explicitLoginWallIsReportedForThreads() {
+        val result = resolver.parseHtml(sourceUrl, "<main>Log in to view this content</main>")
+        val error = (result as ResolverResult.Failure).error as ResolverError.LoginRequired
+        assertEquals("threads", error.platform)
+    }
+
+    @Test
+    fun footerLoginAndScriptTranslationsDoNotImplyLoginIsRequired() {
+        val result = resolver.parseHtml(sourceUrl, """
+            <main>No media exposed</main><footer><a href="/login">Log in</a></footer>
+            <script>{"translation":"Log in to view","login_required":false}</script>
+        """)
+        assertTrue((result as ResolverResult.Failure).error is ResolverError.HtmlStructureChanged)
+    }
+
+    @Test
+    fun http200LoginRedirectStopsBeforeSharePermalinkExtraction() = kotlinx.coroutines.runBlocking {
+        val client = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            okhttp3.Response.Builder()
+                .request(chain.request().newBuilder().url("https://www.threads.com/login").build())
+                .protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+                .body("<html>Log in</html>".toResponseBody()).build()
+        }.build()
+        val result = ThreadsHtmlResolver(client).resolve("https://www.threads.com/share/abc/")
+        val error = (result as ResolverResult.Failure).error as ResolverError.LoginRequired
+        assertEquals("threads", error.platform)
+    }
+
+    @Test
+    fun unresolvedShareLinkHasActionableError() = kotlinx.coroutines.runBlocking {
+        val client = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            okhttp3.Response.Builder().request(chain.request())
+                .protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+                .body("<html>No permalink</html>".toResponseBody()).build()
+        }.build()
+        val result = ThreadsHtmlResolver(client).resolve("https://www.threads.com/share/abc/")
+        assertTrue((result as ResolverResult.Failure).error is ResolverError.ShareLinkUnresolved)
     }
 
     @Test

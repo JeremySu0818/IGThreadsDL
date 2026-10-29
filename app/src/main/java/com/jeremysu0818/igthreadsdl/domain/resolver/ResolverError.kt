@@ -9,7 +9,10 @@ sealed class ResolverError(open val detail: String? = null) {
 
     data class PrivateContent(override val detail: String? = null) : ResolverError(detail)
 
-    data class LoginRequired(override val detail: String? = null) : ResolverError(detail)
+    data class LoginRequired(
+        override val detail: String? = null,
+        val platform: String = "instagram",
+    ) : ResolverError(detail)
 
     data class ContentNotFound(override val detail: String? = null) : ResolverError(detail)
 
@@ -29,11 +32,15 @@ sealed class ResolverError(open val detail: String? = null) {
 
     data class EmptyMedia(override val detail: String? = null) : ResolverError(detail)
 
+    data class MissingVideo(override val detail: String? = null) : ResolverError(detail)
+
+    data class ShareLinkUnresolved(override val detail: String? = null) : ResolverError(detail)
+
     fun userMessage(strings: AppStrings): String = when (this) {
         is InvalidUrl -> strings.errorInvalidUrl
         is UnsupportedPlatform -> strings.errorUnsupportedPlatform
         is PrivateContent -> strings.errorPrivateContent
-        is LoginRequired -> strings.errorLoginRequired
+        is LoginRequired -> if (platform == "threads") strings.errorLoginRequiredThreads else strings.errorLoginRequired
         is ContentNotFound -> strings.errorContentNotFound
         is RateLimited -> strings.errorRateLimited
         is HtmlStructureChanged -> {
@@ -46,6 +53,8 @@ sealed class ResolverError(open val detail: String? = null) {
         is Network -> strings.errorNetwork
         is Http -> String.format(strings.errorHttp, statusCode)
         is EmptyMedia -> strings.errorEmptyMedia
+        is MissingVideo -> strings.errorMissingVideo
+        is ShareLinkUnresolved -> strings.errorShareLinkUnresolved
     }
 
     fun userMessage(): String = userMessage(
@@ -57,19 +66,26 @@ sealed class ResolverError(open val detail: String? = null) {
     )
 
     companion object {
+        fun authenticationError(responseText: String, platform: String): LoginRequired? {
+            val json = runCatching { org.json.JSONObject(responseText) }.getOrNull() ?: return null
+            val message = json.optString("message").lowercase(java.util.Locale.ROOT)
+            return if (json.optBoolean("login_required") ||
+                message in setOf("login_required", "login required", "checkpoint_required", "challenge_required")
+            ) LoginRequired(platform = platform) else null
+        }
+
         fun fromHttpStatus(
             statusCode: Int,
             responseText: String = "",
             platform: String,
         ): ResolverError {
-            val body = responseText.lowercase()
             return when {
                 statusCode == 404 || statusCode == 410 -> ContentNotFound()
                 statusCode == 429 -> RateLimited()
-                statusCode == 401 -> LoginRequired()
-                statusCode == 403 && ("private" in body || "not authorized" in body) -> PrivateContent()
-                statusCode == 403 -> LoginRequired()
+                statusCode == 401 -> LoginRequired(platform = platform)
                 statusCode in 500..599 -> Http(statusCode, "$platform resolver server error")
+                authenticationError(responseText, platform) != null -> authenticationError(responseText, platform)!!
+                statusCode == 403 -> PrivateContent()
                 else -> Http(statusCode)
             }
         }

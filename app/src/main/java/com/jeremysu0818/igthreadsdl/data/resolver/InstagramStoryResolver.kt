@@ -218,14 +218,8 @@ class InstagramStoryResolver(
             ?: return ResolverResult.Failure(
                 ResolverError.HtmlStructureChanged("instagram", "invalid authenticated Story response"),
             )
-        val message = root.optString("message").lowercase(Locale.US)
-        if (
-            root.optBoolean("login_required") ||
-            "login_required" in message ||
-            "login required" in message ||
-            "checkpoint_required" in message
-        ) {
-            return ResolverResult.Failure(ResolverError.LoginRequired())
+        ResolverError.authenticationError(payload, "instagram")?.let {
+            return ResolverResult.Failure(it)
         }
 
         if (normalized.isHighlight) return parseHighlightPayload(normalized, root, cookieHeader, hydrateVideos)
@@ -246,7 +240,7 @@ class InstagramStoryResolver(
         val video = bestVideoCandidate(media)
         if (isVideo(media) && video == null) {
             return ResolverResult.Failure(
-                ResolverError.HtmlStructureChanged("instagram", "Story video URL is missing"),
+                ResolverError.MissingVideo(),
             )
         }
         val type: MediaItemType
@@ -371,7 +365,7 @@ class InstagramStoryResolver(
                 val item = (result as ResolverResult.Success).manifest.items.single()
                 if (item.type != MediaItemType.VIDEO) {
                     return ResolverResult.Failure(
-                        ResolverError.HtmlStructureChanged("instagram", "Story video URL is missing"),
+                        ResolverError.MissingVideo(),
                     )
                 }
                 resolved += item.copy(
@@ -504,12 +498,11 @@ class InstagramStoryResolver(
     }
 
     private fun isLoginResponse(path: String, statusCode: Int, payload: String): Boolean {
-        val lower = payload.lowercase(Locale.US)
         return path.startsWith("/accounts/login") ||
+            path.startsWith("/challenge") || path.startsWith("/checkpoint") ||
             statusCode == 401 ||
-            "\"login_required\":true" in lower ||
-            "\"message\":\"login_required\"" in lower ||
-            "checkpoint_required" in lower
+            statusCode < 500 && statusCode != 429 &&
+            ResolverError.authenticationError(payload, "instagram") != null
     }
 
     companion object {

@@ -16,6 +16,24 @@ class InstagramPublicResolverTest {
     private val sourceUrl = "https://www.instagram.com/p/Carousel123/"
 
     @Test
+    fun explicitAuthenticationFailureIsNotMisclassifiedAsStructureChange() {
+        val payload = """{"message":"challenge_required","status":"fail"}"""
+        assertTrue((resolver.parseGraphQlPayload(sourceUrl, payload) as ResolverResult.Failure)
+            .error is ResolverError.LoginRequired)
+        assertTrue((resolver.parseHtml(sourceUrl, payload) as ResolverResult.Failure)
+            .error is ResolverError.LoginRequired)
+    }
+
+    @Test
+    fun scriptTranslationAndFooterLoginDoNotMisclassifyUnknownResponse() {
+        val result = resolver.parseHtml(sourceUrl, """
+            <html><body><main>No media exposed</main><footer>Log in</footer>
+            <script>{"translation":"login_required","require_login":true}</script></body></html>
+        """)
+        assertTrue((result as ResolverResult.Failure).error is ResolverError.HtmlStructureChanged)
+    }
+
+    @Test
     fun privatePostFallbackUsesCurrentSessionAndUpdatedCsrfWithoutLeakingToCdn() =
         kotlinx.coroutines.runBlocking {
             var graphqlRequested = false

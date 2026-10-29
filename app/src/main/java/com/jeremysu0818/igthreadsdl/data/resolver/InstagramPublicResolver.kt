@@ -61,7 +61,10 @@ class InstagramPublicResolver(
                         ),
                     )
                 }
-                if (response.request.url.encodedPath.startsWith("/accounts/login")) {
+                if (response.request.url.encodedPath.startsWith("/accounts/login") ||
+                    response.request.url.encodedPath.startsWith("/challenge") ||
+                    response.request.url.encodedPath.startsWith("/checkpoint")
+                ) {
                     return@withContext ResolverResult.Failure(ResolverError.LoginRequired())
                 }
                 val cookies = responseCookieList(response.headers, response.request.url)
@@ -150,11 +153,8 @@ class InstagramPublicResolver(
         return client.newCall(request).execute().use { response ->
             val payload = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                if (response.code == 429) {
-                    ResolverResult.Failure(ResolverError.RateLimited())
-                } else {
-                    originalFailure
-                }
+                val error = ResolverError.fromHttpStatus(response.code, payload, "instagram")
+                ResolverResult.Failure(error)
             } else {
                 when (
                     val parsed = parseGraphQlPayload(
@@ -163,7 +163,7 @@ class InstagramPublicResolver(
                         cookieHeader = cookieHeader,
                     )
                 ) {
-                    is ResolverResult.Failure -> originalFailure
+                    is ResolverResult.Failure -> if (parsed.error is ResolverError.LoginRequired) parsed else originalFailure
                     is ResolverResult.Success -> {
                         val enriched = client.enrichMediaMetadata(parsed.manifest.items)
                         ResolverResult.Success(parsed.manifest.copy(items = enriched))
@@ -184,6 +184,9 @@ class InstagramPublicResolver(
             ?: return ResolverResult.Failure(
                 ResolverError.HtmlStructureChanged("instagram", "invalid GraphQL response"),
             )
+        ResolverError.authenticationError(payload, "instagram")?.let {
+            return ResolverResult.Failure(it)
+        }
         val items = root.optJSONObject("data")
             ?.optJSONObject("xdt_api__v1__media__shortcode__web_info")
             ?.optJSONArray("items")
@@ -328,6 +331,9 @@ class InstagramPublicResolver(
             )
         }
 
+        ResolverError.authenticationError(html, "instagram")?.let {
+            return ResolverResult.Failure(it)
+        }
         val document = Jsoup.parse(html, normalized.normalizedUrl)
         val pageText = document.text().lowercase(Locale.US)
         val rawLower = html.lowercase(Locale.US)
@@ -405,7 +411,7 @@ class InstagramPublicResolver(
         }.take(MAX_MEDIA_ITEMS)
         if (accepted.isEmpty()) {
             val error = when {
-                isLoginWall(pageText, rawLower) -> ResolverError.LoginRequired()
+                isLoginWall(pageText) -> ResolverError.LoginRequired()
                 else -> ResolverError.HtmlStructureChanged("instagram")
             }
             return ResolverResult.Failure(error)
@@ -586,10 +592,8 @@ class InstagramPublicResolver(
         else -> null
     }
 
-    private fun isLoginWall(pageText: String, rawLower: String): Boolean =
-        loginPhrases.any { it in pageText } ||
-            "\"login_required\"" in rawLower ||
-            "\"require_login\":true" in rawLower
+    private fun isLoginWall(pageText: String): Boolean =
+        loginPhrases.any { it in pageText }
 
     private fun Element.mediaSource(attribute: String): String {
         val absolute = absUrl(attribute)

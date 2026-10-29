@@ -344,7 +344,7 @@ class InstagramStoryResolverTest {
             val payload = """{"items":[{"pk":"3950932965561026193",$marker,
                 "image_versions2":{"candidates":[{"url":"https://scontent.cdninstagram.com/v/cover.jpg"}]}}]}"""
             val result = resolver.parseAuthenticatedPayload(sourceUrl, payload, cookieHeader)
-            assertTrue((result as ResolverResult.Failure).error is ResolverError.HtmlStructureChanged)
+            assertTrue((result as ResolverResult.Failure).error is ResolverError.MissingVideo)
         }
     }
 

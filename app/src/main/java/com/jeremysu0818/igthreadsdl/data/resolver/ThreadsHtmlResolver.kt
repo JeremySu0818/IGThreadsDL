@@ -44,18 +44,12 @@ class ThreadsHtmlResolver(
             if (normalized.isShareLink) {
                 val permalink = extractPostUrl(fetched.body, fetched.finalUrl)
                     ?: return@withContext ResolverResult.Failure(
-                        ResolverError.HtmlStructureChanged(
-                            "threads",
-                            "share page did not expose a post permalink",
-                        ),
+                        ResolverError.ShareLinkUnresolved(),
                     )
                 normalized = UrlNormalizer.normalizeThreads(permalink)
                     ?.takeUnless { it.isShareLink }
                     ?: return@withContext ResolverResult.Failure(
-                        ResolverError.HtmlStructureChanged(
-                            "threads",
-                            "share page permalink was invalid",
-                        ),
+                        ResolverError.ShareLinkUnresolved(),
                     )
                 fetched = fetchPage(
                     endpoint = buildEndpoint(normalized.normalizedUrl),
@@ -109,15 +103,37 @@ class ThreadsHtmlResolver(
                 body = body,
                 finalUrl = response.request.url.toString(),
                 cookieHeader = responseCookies(response.headers, response.request.url),
-                failure = if (response.isSuccessful) null else {
+                failure = if (response.request.url.encodedPath.contains("/login") ||
+                    response.request.url.encodedPath.startsWith("/challenge")) {
+                    ResolverError.LoginRequired(platform = "threads")
+                } else if (response.isSuccessful) {
+                    ResolverError.authenticationError(body, "threads") ?: pageError(Jsoup.parse(body))
+                } else {
                     ResolverError.fromHttpStatus(response.code, body, "threads")
                 },
             )
         }
     }
 
+    private fun pageError(document: Document): ResolverError? {
+        // Only explicit visible restrictions count; a footer login link or script
+        // translation must not turn a public post into a login error.
+        val text = document.text().lowercase(Locale.ROOT)
+        return when {
+            listOf("too many requests", "rate limit", "請稍等幾分鐘再試", "请求过于频繁")
+                .any(text::contains) -> ResolverError.RateLimited()
+            listOf("log in to see", "log in to view", "login to view", "sign in to view",
+                "登入即可查看", "登入以查看", "登录后查看", "登录以查看")
+                .any(text::contains) -> ResolverError.LoginRequired(platform = "threads")
+            listOf("this profile is private", "this account is private", "私人個人檔案", "私密账号")
+                .any(text::contains) -> ResolverError.PrivateContent()
+            else -> null
+        }
+    }
+
     internal fun extractPostUrl(html: String, baseUrl: String = BASE_URL): String? {
         val document = Jsoup.parse(html, baseUrl)
+        if (pageError(document) != null) return null
         val candidates = sequenceOf(
             document.selectFirst("link[rel=canonical][href]")?.absUrl("href"),
             document.selectFirst("meta[property=og:url][content]")?.attr("content"),
@@ -145,7 +161,11 @@ class ThreadsHtmlResolver(
             )
         }
 
+        ResolverError.authenticationError(html, "threads")?.let {
+            return ResolverResult.Failure(it)
+        }
         val document = Jsoup.parse(html, baseUrl)
+        pageError(document)?.let { return ResolverResult.Failure(it) }
         val candidates = LinkedHashMap<String, Candidate>()
 
         document.select("script").forEach { script ->
@@ -189,7 +209,7 @@ class ThreadsHtmlResolver(
             val lower = document.text().lowercase(Locale.US)
             val error = when {
                 "rate limit" in lower || "too many requests" in lower -> ResolverError.RateLimited()
-                "not found" in lower || "deleted" in lower -> ResolverError.ContentNotFound()
+                "this content isn\'t available" in lower || "page isn\'t available" in lower -> ResolverError.ContentNotFound()
                 else -> ResolverError.HtmlStructureChanged("threads")
             }
             return ResolverResult.Failure(error)

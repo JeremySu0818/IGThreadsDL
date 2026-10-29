@@ -127,6 +127,7 @@ data class AppStrings(
     val errorUnsupportedPlatform: String,
     val errorPrivateContent: String,
     val errorLoginRequired: String,
+    val errorLoginRequiredThreads: String,
     val errorContentNotFound: String,
     val errorRateLimited: String,
     val errorHtmlChangedThreads: String,
@@ -134,6 +135,8 @@ data class AppStrings(
     val errorNetwork: String,
     val errorHttp: String,
     val errorEmptyMedia: String,
+    val errorMissingVideo: String,
+    val errorShareLinkUnresolved: String,
 
     
     val overlayBtnMinimize: String,
@@ -300,6 +303,7 @@ data class AppStrings(
                 errorUnsupportedPlatform = text("errorUnsupportedPlatform"),
                 errorPrivateContent = text("errorPrivateContent"),
                 errorLoginRequired = text("errorLoginRequired"),
+                errorLoginRequiredThreads = text("errorLoginRequiredThreads"),
                 errorContentNotFound = text("errorContentNotFound"),
                 errorRateLimited = text("errorRateLimited"),
                 errorHtmlChangedThreads = text("errorHtmlChangedThreads"),
@@ -307,6 +311,8 @@ data class AppStrings(
                 errorNetwork = text("errorNetwork"),
                 errorHttp = text("errorHttp"),
                 errorEmptyMedia = text("errorEmptyMedia"),
+                errorMissingVideo = text("errorMissingVideo"),
+                errorShareLinkUnresolved = text("errorShareLinkUnresolved"),
                 overlayBtnMinimize = text("overlayBtnMinimize"),
                 overlayBtnClose = text("overlayBtnClose"),
                 overlayDragToStop = text("overlayDragToStop"),
