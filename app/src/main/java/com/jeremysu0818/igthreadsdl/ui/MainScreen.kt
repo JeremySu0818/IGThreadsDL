@@ -74,6 +74,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.material.icons.filled.Language
+import com.jeremysu0818.igthreadsdl.BuildConfig
 import com.jeremysu0818.igthreadsdl.i18n.AppLanguage
 import com.jeremysu0818.igthreadsdl.i18n.AppStrings
 import androidx.compose.runtime.collectAsState
@@ -701,7 +702,7 @@ private fun SettingsPage(
                         icon = Icons.Default.Info,
                         title = strings.settingsAppInfoTitle,
                         subtitle = strings.settingsAppInfoSubtitle,
-                        trailingText = "1.0",
+                        trailingText = BuildConfig.VERSION_NAME,
                     )
                 }
             }
